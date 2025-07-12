@@ -1,0 +1,7 @@
+# HTTP 请求 Cookie 配置文件
+# 格式：name=value; name2=value2
+# 示例：
+# session_id=abc123; auth_token=xyz789; user_pref=lang_zh
+
+# 请在此处添加您的 Cookie 信息
+# 可以从浏览器开发者工具中复制 Cookie 字符串
