@@ -18,6 +18,7 @@ class LLMConfig:
     max_tokens: int = 4000
     max_context_length: int = 64000  # 最大上下文长度
     timeout: int = 60
+    request_interval: float = 1.0  # 请求间隔（秒），默认1秒
 
 
 @dataclass
@@ -29,6 +30,7 @@ class VisionConfig:
     max_image_size: str = "1024x1024"
     image_quality: str = "high"
     description_detail: str = "detailed"
+    request_interval: float = 1.0  # 请求间隔（秒），默认1秒
 
 
 @dataclass

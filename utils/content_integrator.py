@@ -198,6 +198,38 @@ class ContentIntegrator:
         
         return truncated_content
     
+    def integrate_chapters_chunked(self, chapters: List[ChapterInfo], max_length: int) -> List[IntegratedChapter]:
+        """
+        整合章节内容并进行分块处理
+        
+        Args:
+            chapters: 章节信息列表
+            max_length: 最大内容长度限制
+            
+        Returns:
+            整合并分块后的章节列表
+        """
+        # 临时保存原始的最大块大小设置
+        original_chunk_size = self.max_chunk_size
+        
+        try:
+            # 使用传入的最大长度作为分块大小
+            self.max_chunk_size = max_length
+            
+            # 首先整合所有章节
+            integrated_chapters = self.integrate_chapters(chapters)
+            
+            # 然后分割过大的章节
+            chunked_chapters = self.split_large_chapters(integrated_chapters)
+            
+            logger.info(f"章节分块完成: {len(chapters)} -> {len(integrated_chapters)} -> {len(chunked_chapters)} 个章节")
+            
+            return chunked_chapters
+            
+        finally:
+            # 恢复原始的最大块大小设置
+            self.max_chunk_size = original_chunk_size
+    
     def split_large_chapters(self, chapters: List[IntegratedChapter]) -> List[IntegratedChapter]:
         """分割过大的章节"""
         split_chapters = []

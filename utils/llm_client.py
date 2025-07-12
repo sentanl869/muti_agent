@@ -6,6 +6,7 @@ LLM 客户端模块
 import base64
 import io
 import logging
+import time
 from typing import Optional, Dict, Any, List
 from PIL import Image
 import requests
@@ -17,6 +18,36 @@ from prompts import DocumentCheckerPrompts
 logger = logging.getLogger(__name__)
 
 
+class RateLimiter:
+    """请求频率限制器"""
+    
+    def __init__(self, interval: float = 1.0):
+        """
+        初始化频率限制器
+        
+        Args:
+            interval: 请求间隔时间（秒）
+        """
+        self.interval = interval
+        self.last_request_time = 0.0
+    
+    def wait_if_needed(self):
+        """如果需要，等待到下一个允许的请求时间"""
+        current_time = time.time()
+        time_since_last_request = current_time - self.last_request_time
+        
+        if time_since_last_request < self.interval:
+            wait_time = self.interval - time_since_last_request
+            logger.debug(f"频率限制：等待 {wait_time:.2f} 秒")
+            time.sleep(wait_time)
+        
+        self.last_request_time = time.time()
+    
+    def update_interval(self, interval: float):
+        """更新请求间隔"""
+        self.interval = interval
+
+
 class LLMClient:
     """文本 LLM 客户端"""
     
@@ -26,10 +57,14 @@ class LLMClient:
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
+        self.rate_limiter = RateLimiter(self.config.request_interval)
     
     def chat(self, prompt: str, system_prompt: str = None) -> str:
         """发送聊天请求"""
         try:
+            # 频率限制
+            self.rate_limiter.wait_if_needed()
+            
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -52,6 +87,9 @@ class LLMClient:
     def chat_with_context(self, messages: List[Dict[str, str]]) -> str:
         """发送带上下文的聊天请求"""
         try:
+            # 频率限制
+            self.rate_limiter.wait_if_needed()
+            
             response = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
@@ -65,6 +103,11 @@ class LLMClient:
         except Exception as e:
             logger.error(f"LLM 上下文请求失败: {e}")
             raise
+    
+    def update_rate_limit(self, interval: float):
+        """更新请求频率限制"""
+        self.rate_limiter.update_interval(interval)
+        logger.info(f"LLM 客户端请求间隔已更新为 {interval} 秒")
 
 
 class VisionClient:
@@ -76,10 +119,14 @@ class VisionClient:
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
+        self.rate_limiter = RateLimiter(self.config.request_interval)
     
     def analyze_image(self, image_path: str, prompt: str = None) -> str:
         """分析图像并返回描述"""
         try:
+            # 频率限制
+            self.rate_limiter.wait_if_needed()
+            
             # 读取并处理图像
             image_base64 = self._encode_image(image_path)
             
@@ -139,6 +186,11 @@ class VisionClient:
         except Exception as e:
             logger.error(f"图像编码失败: {e}")
             raise
+    
+    def update_rate_limit(self, interval: float):
+        """更新请求频率限制"""
+        self.rate_limiter.update_interval(interval)
+        logger.info(f"视觉客户端请求间隔已更新为 {interval} 秒")
 
 
 class MultiModalClient:
@@ -181,3 +233,19 @@ class MultiModalClient:
             self.text_client = LLMClient(llm_config)
         if vision_config:
             self.vision_client = VisionClient(vision_config)
+    
+    def update_rate_limits(self, llm_interval: float = None, vision_interval: float = None):
+        """更新请求频率限制"""
+        if llm_interval is not None:
+            self.text_client.update_rate_limit(llm_interval)
+        if vision_interval is not None:
+            self.vision_client.update_rate_limit(vision_interval)
+        
+        logger.info("多模态客户端频率限制已更新")
+    
+    def get_rate_limit_info(self) -> Dict[str, float]:
+        """获取当前频率限制信息"""
+        return {
+            "llm_interval": self.text_client.rate_limiter.interval,
+            "vision_interval": self.vision_client.rate_limiter.interval
+        }
