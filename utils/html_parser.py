@@ -134,41 +134,175 @@ class HTMLParser:
         return meta_info
     
     def _extract_chapters(self, soup: BeautifulSoup) -> List[ChapterInfo]:
-        """提取章节结构"""
+        """提取章节结构 - 两层策略：先提取h1主章节，再提取子章节"""
         chapters = []
         
         try:
-            # 查找所有标题标签
-            heading_tags = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+            # 第一步：提取 h1 级别的主章节
+            h1_chapters = self._extract_h1_chapters(soup)
             
-            for i, heading in enumerate(heading_tags):
-                # 获取标题级别
+            # 第二步：对每个 h1 章节，提取内部的子章节
+            for h1_chapter in h1_chapters:
+                # 将 h1 章节添加到结果中
+                chapters.append(h1_chapter)
+                
+                # 提取该 h1 章节内的子章节（h2, h3 等）
+                sub_chapters = self._extract_sub_chapters(soup, h1_chapter)
+                chapters.extend(sub_chapters)
+            
+        except Exception as e:
+            logger.error(f"提取章节结构失败: {e}")
+        
+        return chapters
+    
+    def _extract_h1_chapters(self, soup: BeautifulSoup) -> List[ChapterInfo]:
+        """提取 h1 级别的主章节，仿照 get_chapter 函数的方式"""
+        chapters = []
+        
+        try:
+            # 查找所有 h1 标签，跳过第一个（通常是页面标题）
+            h1_tags = soup.find_all("h1")[1:]
+            
+            for i, h1_tag in enumerate(h1_tags):
+                chapter_title = self._clean_text(h1_tag.get_text())
+                
+                if not chapter_title:
+                    continue
+                
+                # 提取章节内容
+                content_parts = []
+                for sibling in h1_tag.find_next_siblings():
+                    if sibling.name == "h1":
+                        break
+                    sibling_content = self._clean_text(sibling.get_text())
+                    if sibling_content == "":
+                        continue
+                    content_parts.append(sibling_content)
+                
+                content = "\n".join(content_parts)
+                
+                # 如果内容为空或标题为空，跳过
+                if len(content) == 0 or chapter_title == "":
+                    continue
+                
+                # 创建章节信息
+                chapter = ChapterInfo(
+                    title=chapter_title,
+                    level=1,
+                    content=content,
+                    images=[],
+                    position=i,
+                    html_id=h1_tag.get('id', ''),
+                    parent_path=""  # h1 章节没有父路径
+                )
+                
+                chapters.append(chapter)
+                
+        except Exception as e:
+            logger.error(f"提取 h1 章节失败: {e}")
+        
+        return chapters
+    
+    def _extract_sub_chapters(self, soup: BeautifulSoup, h1_chapter: ChapterInfo) -> List[ChapterInfo]:
+        """在 h1 章节内提取子章节（h2, h3 等）"""
+        sub_chapters = []
+        
+        try:
+            # 找到对应的 h1 标签
+            h1_tag = None
+            h1_tags = soup.find_all("h1")
+            for tag in h1_tags:
+                if self._clean_text(tag.get_text()) == h1_chapter.title:
+                    h1_tag = tag
+                    break
+            
+            if not h1_tag:
+                return sub_chapters
+            
+            # 收集该 h1 章节范围内的所有子标题
+            sub_headings = []
+            
+            # 使用 find_next_siblings 方法，类似于 h1 章节的提取方式
+            for sibling in h1_tag.find_next_siblings():
+                if sibling.name == "h1":
+                    break  # 遇到下一个 h1，停止
+                elif sibling.name in ['h2', 'h3', 'h4', 'h5', 'h6']:
+                    sub_headings.append(sibling)
+            
+            # 为每个子标题创建章节信息
+            for i, heading in enumerate(sub_headings):
                 level = int(heading.name[1])
                 title = self._clean_text(heading.get_text())
                 
                 if not title:
                     continue
                 
-                # 获取章节内容
-                content = self._extract_chapter_content(heading)
+                # 提取子章节内容
+                content = self._extract_sub_chapter_content(heading, level)
                 
-                # 创建章节信息
-                chapter = ChapterInfo(
+                # 构建父路径，支持多级嵌套
+                parent_path = self._build_parent_path(sub_chapters, h1_chapter.title, level)
+                
+                # 创建子章节信息
+                sub_chapter = ChapterInfo(
                     title=title,
                     level=level,
                     content=content,
                     images=[],
-                    position=i,
+                    position=h1_chapter.position * 100 + i,  # 确保子章节位置唯一
                     html_id=heading.get('id', ''),
-                    parent_path=self._get_parent_path(chapters, level)
+                    parent_path=parent_path
                 )
                 
-                chapters.append(chapter)
+                sub_chapters.append(sub_chapter)
+                
+        except Exception as e:
+            logger.error(f"提取子章节失败: {e}")
+        
+        return sub_chapters
+    
+    def _extract_sub_chapter_content(self, heading_tag: Tag, level: int) -> str:
+        """提取子章节内容"""
+        content_parts = []
+        
+        try:
+            # 遍历后续元素直到下一个同级或更高级标题
+            current = heading_tag.next_sibling
+            
+            while current:
+                if hasattr(current, 'name'):
+                    # 如果遇到同级或更高级标题，停止
+                    if current.name and current.name.startswith('h'):
+                        next_level = int(current.name[1])
+                        if next_level <= level:
+                            break
+                    
+                    # 提取文本内容，简化过滤逻辑
+                    if current.name in ['p', 'div', 'section', 'article', 'ul', 'ol', 'table', 'pre', 'blockquote']:
+                        text = self._clean_text(current.get_text())
+                        if text and len(text.strip()) > 5:  # 简化的内容过滤
+                            content_parts.append(text)
+                
+                current = current.next_sibling
             
         except Exception as e:
-            logger.error(f"提取章节结构失败: {e}")
+            logger.warning(f"提取子章节内容失败: {e}")
         
-        return chapters
+        return '\n\n'.join(content_parts)
+    
+    def _build_parent_path(self, sub_chapters: List[ChapterInfo], h1_title: str, current_level: int) -> str:
+        """构建子章节的父路径，支持多级嵌套"""
+        path_parts = [h1_title]  # 从 h1 章节开始
+        
+        # 从后往前查找父章节
+        for chapter in reversed(sub_chapters):
+            if chapter.level < current_level:
+                path_parts.append(chapter.title)
+                current_level = chapter.level
+                if current_level == 2:  # 到达 h2 级别，停止
+                    break
+        
+        return ' > '.join(path_parts)
     
     def _extract_chapter_content(self, heading_tag: Tag) -> str:
         """提取章节内容"""
