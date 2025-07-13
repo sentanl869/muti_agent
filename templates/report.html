@@ -530,6 +530,85 @@
             background: var(--primary-color);
         }
 
+        /* 简化章节列表样式 */
+        .chapters-simple-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .missing-chapter-simple,
+        .extra-chapter-simple {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 0.75rem 1rem;
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+            border: 1px solid var(--gray-200);
+        }
+
+        .missing-chapter-simple:hover,
+        .extra-chapter-simple:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .chapter-level-tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 2.5rem;
+            text-align: center;
+        }
+
+        .chapter-level-tag.missing {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .chapter-level-tag.extra {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
+        .chapter-title-simple {
+            font-weight: 500;
+            color: var(--gray-800);
+            font-size: 0.9rem;
+        }
+
+        .tree-empty {
+            color: var(--gray-500);
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        /* 响应式优化 */
+        @media (max-width: 768px) {
+            .tree-container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .chapters-simple-list {
+                flex-direction: column;
+            }
+
+            .missing-chapter-simple,
+            .extra-chapter-simple {
+                justify-content: flex-start;
+            }
+        }
+
         /* 图表样式 */
         .chart-container {
             margin: 2rem 0;
@@ -743,28 +822,66 @@
                     </div>
                 </div>
 
+                <!-- 章节结构树对比 -->
+                <div class="structure-tree">
+                    <h4>🌳 章节结构树对比</h4>
+                    <div class="tree-legend">
+                        <div class="legend-item">
+                            <div class="legend-color matched"></div>
+                            <span>匹配章节</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color missing"></div>
+                            <span>缺失章节</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color extra"></div>
+                            <span>新增章节</span>
+                        </div>
+                    </div>
+                    <div class="tree-container">
+                        <div class="tree-column">
+                            <h4>📄 被检测文档结构</h4>
+                            {% if document_structure_tree %}
+                                {% for node in document_structure_tree %}
+                                <div class="tree-node {{ node.status }}">
+                                    <span class="tree-node-level">H{{ node.level }}</span>
+                                    {{ node.title }}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="tree-empty">暂无结构数据</p>
+                            {% endif %}
+                        </div>
+                        <div class="tree-column">
+                            <h4>📋 模板文档结构</h4>
+                            {% if template_structure_tree %}
+                                {% for node in template_structure_tree %}
+                                <div class="tree-node {{ node.status }}">
+                                    <span class="tree-node-level">H{{ node.level }}</span>
+                                    {{ node.title }}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="tree-empty">暂无结构数据</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 缺失章节详情 -->
                 {% if missing_chapters %}
                 <div class="missing-chapters-container">
                     <h3>❌ 缺失章节详情 ({{ missing_chapters_count }} 个)</h3>
                     <p>以下章节在模板中存在，但目标文档中缺失：</p>
-                    {% for chapter in missing_chapters %}
-                    <div class="missing-chapter">
-                        <div class="missing-chapter-title">{{ chapter.title }}</div>
-                        <div class="missing-chapter-info">
-                            <span class="missing-chapter-label">章节层级:</span>
-                            <span>H{{ chapter.level }}</span>
-                            <span class="missing-chapter-label">预期路径:</span>
-                            <span>{{ chapter.expected_path if chapter.expected_path else '根级章节' }}</span>
-                            {% if chapter.parent_title %}
-                            <span class="missing-chapter-label">父章节:</span>
-                            <span>{{ chapter.parent_title }}</span>
-                            {% endif %}
-                            <span class="missing-chapter-label">预期位置:</span>
-                            <span>第 {{ chapter.position + 1 }} 个章节</span>
+                    <div class="chapters-simple-list">
+                        {% for chapter in missing_chapters %}
+                        <div class="missing-chapter-simple">
+                            <span class="chapter-level-tag missing">H{{ chapter.level }}</span>
+                            <span class="chapter-title-simple">{{ chapter.title }}</span>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% endif %}
 
@@ -773,23 +890,14 @@
                 <div class="extra-chapters-container">
                     <h3>➕ 新增章节详情 ({{ extra_chapters_count }} 个)</h3>
                     <p>以下章节在目标文档中存在，但模板中没有：</p>
-                    {% for chapter in extra_chapters %}
-                    <div class="extra-chapter">
-                        <div class="extra-chapter-title">{{ chapter.title }}</div>
-                        <div class="extra-chapter-info">
-                            <span class="extra-chapter-label">章节层级:</span>
-                            <span>H{{ chapter.level }}</span>
-                            <span class="extra-chapter-label">内容长度:</span>
-                            <span>{{ chapter.content|length }} 字符</span>
-                            {% if chapter.images %}
-                            <span class="extra-chapter-label">包含图片:</span>
-                            <span>{{ chapter.images|length }} 张</span>
-                            {% endif %}
-                            <span class="extra-chapter-label">在文档中位置:</span>
-                            <span>目标文档特有章节</span>
+                    <div class="chapters-simple-list">
+                        {% for chapter in extra_chapters %}
+                        <div class="extra-chapter-simple">
+                            <span class="chapter-level-tag extra">H{{ chapter.level }}</span>
+                            <span class="chapter-title-simple">{{ chapter.title }}</span>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% endif %}
 
