@@ -147,10 +147,10 @@ class DocumentFetcher:
         if 'page_id=' in base_url:
             # 替换现有的 page_id
             import re
-            return re.sub(r'page_id=[^&]*', f'page_id={page_id}', base_url)
+            return re.sub(r'page_id=[^&]*', f'pageId={page_id}', base_url)
         else:
             # 添加新的 page_id 参数
-            return f"{base_url}{separator}page_id={page_id}"
+            return f"{base_url}{separator}pageId={page_id}"
     
     def _get_base_url(self, full_url: str) -> str:
         """获取基础 URL（用于解析相对路径）"""

@@ -21,7 +21,6 @@ class StructureNode:
     title: str
     level: int
     children: List['StructureNode']
-    parent: 'StructureNode' = None
     path: str = ""
     position: int = 0
 
@@ -113,30 +112,28 @@ class StructureChecker:
         stack = [root]  # 用于跟踪当前路径
         
         for i, chapter in enumerate(chapters):
-            # 创建新节点
-            node = StructureNode(
-                title=chapter.title,
-                level=chapter.level,
-                children=[],
-                position=i
-            )
-            
             # 找到合适的父节点
             while len(stack) > 1 and stack[-1].level >= chapter.level:
                 stack.pop()
             
             parent = stack[-1]
-            node.parent = parent
-            parent.children.append(node)
             
             # 构建路径
             path_parts = []
-            current = node.parent
-            while current and current.title != "根节点":
-                path_parts.insert(0, current.title)
-                current = current.parent
-            node.path = " > ".join(path_parts)
+            for stack_node in stack[1:]:  # 跳过根节点
+                path_parts.append(stack_node.title)
+            path = " > ".join(path_parts)
             
+            # 创建新节点
+            node = StructureNode(
+                title=chapter.title,
+                level=chapter.level,
+                children=[],
+                path=path,
+                position=i
+            )
+            
+            parent.children.append(node)
             stack.append(node)
         
         return root
