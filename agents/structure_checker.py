@@ -203,14 +203,25 @@ class StructureChecker:
                         break
                 
                 if not found:
-                    # 找到额外章节
-                    for chapter in target_chapters:
-                        if chapter.title == target_child.title:
-                            extra_chapters.append(chapter)
-                            break
+                    # 找到额外章节，添加该章节及其所有子章节
+                    self._add_extra_chapter_and_descendants(target_child, target_chapters, extra_chapters)
         
         check_node(template_tree, target_tree)
         return extra_chapters
+    
+    def _add_extra_chapter_and_descendants(self, node: StructureNode, 
+                                         target_chapters: List[ChapterInfo], 
+                                         extra_list: List[ChapterInfo]):
+        """将节点及其所有后代添加为额外章节"""
+        # 添加当前节点
+        for chapter in target_chapters:
+            if chapter.title == node.title:
+                extra_list.append(chapter)
+                break
+        
+        # 递归添加所有子节点
+        for child in node.children:
+            self._add_extra_chapter_and_descendants(child, target_chapters, extra_list)
     
     def _analyze_structure_issues(self, template_tree: StructureNode, 
                                 target_tree: StructureNode) -> List[str]:

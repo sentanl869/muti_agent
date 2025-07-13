@@ -88,6 +88,14 @@ class ReportGenerator:
         pass_rate = (passed_checks / total_checks * 100) if total_checks > 0 else 100
         
         
+        # 转换结构树数据
+        document_structure_tree, template_structure_tree = self._convert_structure_trees(
+            structure_result.target_structure, 
+            structure_result.template_structure,
+            structure_result.missing_chapters,
+            structure_result.extra_chapters
+        )
+        
         report_data = {
             # 基本信息
             'document_name': target_doc_info.get('meta_info', {}).get('title', '未知文档'),
@@ -112,6 +120,10 @@ class ReportGenerator:
             'missing_chapters': structure_result.missing_chapters,
             'extra_chapters': structure_result.extra_chapters,
             'structure_issues': structure_result.structure_issues,
+            
+            # 结构树数据
+            'document_structure_tree': document_structure_tree,
+            'template_structure_tree': template_structure_tree,
             
             # 内容检查结果
             'content_passed': content_result.passed,
@@ -162,6 +174,105 @@ class ReportGenerator:
         }
         
         return statistics
+    
+    def _convert_structure_trees(self, target_structure, template_structure, missing_chapters, extra_chapters):
+        """
+        转换结构树为HTML模板所需的格式
+        
+        Args:
+            target_structure: 目标文档结构树
+            template_structure: 模板文档结构树
+            missing_chapters: 缺失章节列表
+            extra_chapters: 额外章节列表
+            
+        Returns:
+            tuple: (目标文档结构树数据, 模板文档结构树数据)
+        """
+        try:
+            # 创建缺失章节标题集合，用于快速查找
+            missing_titles = {ch.title for ch in missing_chapters}
+            extra_titles = {ch.title for ch in extra_chapters}
+            
+            # 转换目标文档结构树
+            document_tree = self._flatten_structure_tree(target_structure, missing_titles, extra_titles, is_target=True)
+            
+            # 转换模板文档结构树
+            template_tree = self._flatten_structure_tree(template_structure, missing_titles, extra_titles, is_target=False)
+            
+            return document_tree, template_tree
+            
+        except Exception as e:
+            logger.error(f"转换结构树失败: {e}")
+            # 返回空列表，避免模板渲染失败
+            return [], []
+    
+    def _flatten_structure_tree(self, structure_node, missing_titles, extra_titles, is_target=True):
+        """
+        将结构树扁平化为节点列表
+        
+        Args:
+            structure_node: 结构树根节点
+            missing_titles: 缺失章节标题集合
+            extra_titles: 额外章节标题集合
+            is_target: 是否为目标文档
+            
+        Returns:
+            list: 扁平化的节点列表
+        """
+        nodes = []
+        
+        def traverse_node(node, depth=0):
+            # 跳过根节点
+            if node.title == "根节点":
+                for child in node.children:
+                    traverse_node(child, depth)
+                return
+            
+            # 确定节点状态
+            status = self._determine_node_status(node.title, missing_titles, extra_titles, is_target)
+            
+            # 创建节点数据
+            node_data = {
+                'title': node.title,
+                'level': node.level,
+                'status': status,
+                'depth': depth
+            }
+            
+            nodes.append(node_data)
+            
+            # 递归处理子节点
+            for child in node.children:
+                traverse_node(child, depth + 1)
+        
+        traverse_node(structure_node)
+        return nodes
+    
+    def _determine_node_status(self, title, missing_titles, extra_titles, is_target):
+        """
+        确定节点在对比中的状态
+        
+        Args:
+            title: 节点标题
+            missing_titles: 缺失章节标题集合
+            extra_titles: 额外章节标题集合
+            is_target: 是否为目标文档
+            
+        Returns:
+            str: 节点状态 ('matched', 'missing', 'extra')
+        """
+        if is_target:
+            # 对于目标文档
+            if title in extra_titles:
+                return 'extra'  # 目标文档中的额外章节
+            else:
+                return 'matched'  # 匹配的章节
+        else:
+            # 对于模板文档
+            if title in missing_titles:
+                return 'missing'  # 模板中存在但目标文档缺失的章节
+            else:
+                return 'matched'  # 匹配的章节
     
     def _load_template(self) -> str:
         """加载 HTML 模板"""
