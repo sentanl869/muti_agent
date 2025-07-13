@@ -306,24 +306,228 @@
             transform: rotate(180deg);
         }
 
+        /* 章节完整性样式 */
+        .structure-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .structure-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .structure-card h4 {
+            margin: 0 0 1rem 0;
+            color: var(--gray-900);
+            font-size: 1.1rem;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .comparison-table th {
+            background: var(--gray-50);
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
         /* 缺失章节样式 */
+        .missing-chapters-container {
+            margin: 1.5rem 0;
+        }
+
         .missing-chapter {
             background: #fef2f2;
             border: 1px solid #fecaca;
             border-radius: var(--border-radius);
             padding: 1rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .missing-chapter::before {
+            content: "❌";
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.2rem;
         }
 
         .missing-chapter-title {
             font-weight: 600;
             color: var(--error-color);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
         }
 
-        .missing-chapter-path {
+        .missing-chapter-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
             font-size: 0.875rem;
             color: var(--gray-600);
-            margin-top: 0.25rem;
+        }
+
+        .missing-chapter-label {
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        /* 新增章节样式 */
+        .extra-chapters-container {
+            margin: 1.5rem 0;
+        }
+
+        .extra-chapter {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .extra-chapter::before {
+            content: "➕";
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .extra-chapter-title {
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .extra-chapter-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--gray-600);
+        }
+
+        .extra-chapter-label {
+            font-weight: 500;
+            color: var(--gray-700);
+        }
+
+        /* 章节对比树状图样式 */
+        .structure-tree {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .tree-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .tree-column h4 {
+            margin: 0 0 1rem 0;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--gray-200);
+            color: var(--gray-900);
+        }
+
+        .tree-node {
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            position: relative;
+        }
+
+        .tree-node.matched {
+            background: #f0fdf4;
+            border-left: 3px solid var(--success-color);
+            color: var(--gray-800);
+        }
+
+        .tree-node.missing {
+            background: #fef2f2;
+            border-left: 3px solid var(--error-color);
+            color: var(--gray-800);
+        }
+
+        .tree-node.extra {
+            background: #eff6ff;
+            border-left: 3px solid var(--primary-color);
+            color: var(--gray-800);
+        }
+
+        .tree-node-level {
+            display: inline-block;
+            width: 2rem;
+            text-align: center;
+            font-size: 0.75rem;
+            background: var(--gray-100);
+            border-radius: 3px;
+            margin-right: 0.5rem;
+            color: var(--gray-600);
+        }
+
+        .tree-legend {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .legend-color {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 3px;
+        }
+
+        .legend-color.matched {
+            background: var(--success-color);
+        }
+
+        .legend-color.missing {
+            background: var(--error-color);
+        }
+
+        .legend-color.extra {
+            background: var(--primary-color);
         }
 
         /* 图表样式 */
@@ -488,15 +692,6 @@
                 </div>
             </div>
 
-            <!-- 违规类型分布图表 -->
-            {% if violation_chart_data %}
-            <div class="chart-container">
-                <h3>违规类型分布</h3>
-                <div class="chart-bars" id="violation-chart">
-                    <!-- 图表将通过 JavaScript 生成 -->
-                </div>
-            </div>
-            {% endif %}
         </div>
     </section>
 
@@ -512,32 +707,96 @@
                     </div>
                 </div>
                 
-                <div class="structure-summary">
-                    <p><strong>结构相似度：</strong>{{ structure_similarity }}%</p>
-                    <p><strong>模板章节数：</strong>{{ template_chapters }}</p>
-                    <p><strong>目标章节数：</strong>{{ total_chapters }}</p>
+                <!-- 章节对比概览 -->
+                <div class="structure-overview">
+                    <div class="structure-card">
+                        <h4>📊 结构对比概览</h4>
+                        <table class="comparison-table">
+                            <tr>
+                                <th>项目</th>
+                                <th>模板文档</th>
+                                <th>目标文档</th>
+                                <th>状态</th>
+                            </tr>
+                            <tr>
+                                <td>总章节数</td>
+                                <td>{{ template_chapters }}</td>
+                                <td>{{ total_chapters }}</td>
+                                <td>{% if template_chapters == total_chapters %}✅ 一致{% else %}⚠️ 不一致{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td>结构相似度</td>
+                                <td colspan="2">{{ structure_similarity }}%</td>
+                                <td>{% if structure_similarity >= 90 %}✅ 高{% elif structure_similarity >= 70 %}⚠️ 中{% else %}❌ 低{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td>缺失章节</td>
+                                <td colspan="2">{{ missing_chapters_count }} 个</td>
+                                <td>{% if missing_chapters_count == 0 %}✅ 无{% else %}❌ 有缺失{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td>新增章节</td>
+                                <td colspan="2">{{ extra_chapters_count }} 个</td>
+                                <td>{% if extra_chapters_count == 0 %}✅ 无{% else %}ℹ️ 有新增{% endif %}</td>
+                            </tr>
+                        </table>
+                    </div>
                 </div>
 
+                <!-- 缺失章节详情 -->
                 {% if missing_chapters %}
-                <div class="missing-chapters">
-                    <h3>缺失章节 ({{ missing_chapters_count }} 个)</h3>
+                <div class="missing-chapters-container">
+                    <h3>❌ 缺失章节详情 ({{ missing_chapters_count }} 个)</h3>
+                    <p>以下章节在模板中存在，但目标文档中缺失：</p>
                     {% for chapter in missing_chapters %}
                     <div class="missing-chapter">
                         <div class="missing-chapter-title">{{ chapter.title }}</div>
-                        <div class="missing-chapter-path">预期路径: {{ chapter.expected_path }}</div>
-                        {% if chapter.parent_title %}
-                        <div class="missing-chapter-path">父章节: {{ chapter.parent_title }}</div>
-                        {% endif %}
+                        <div class="missing-chapter-info">
+                            <span class="missing-chapter-label">章节层级:</span>
+                            <span>H{{ chapter.level }}</span>
+                            <span class="missing-chapter-label">预期路径:</span>
+                            <span>{{ chapter.expected_path if chapter.expected_path else '根级章节' }}</span>
+                            {% if chapter.parent_title %}
+                            <span class="missing-chapter-label">父章节:</span>
+                            <span>{{ chapter.parent_title }}</span>
+                            {% endif %}
+                            <span class="missing-chapter-label">预期位置:</span>
+                            <span>第 {{ chapter.position + 1 }} 个章节</span>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
-                {% else %}
-                <p>✅ 所有必需章节都已包含</p>
                 {% endif %}
-                
+
+                <!-- 新增章节详情 -->
+                {% if extra_chapters %}
+                <div class="extra-chapters-container">
+                    <h3>➕ 新增章节详情 ({{ extra_chapters_count }} 个)</h3>
+                    <p>以下章节在目标文档中存在，但模板中没有：</p>
+                    {% for chapter in extra_chapters %}
+                    <div class="extra-chapter">
+                        <div class="extra-chapter-title">{{ chapter.title }}</div>
+                        <div class="extra-chapter-info">
+                            <span class="extra-chapter-label">章节层级:</span>
+                            <span>H{{ chapter.level }}</span>
+                            <span class="extra-chapter-label">内容长度:</span>
+                            <span>{{ chapter.content|length }} 字符</span>
+                            {% if chapter.images %}
+                            <span class="extra-chapter-label">包含图片:</span>
+                            <span>{{ chapter.images|length }} 张</span>
+                            {% endif %}
+                            <span class="extra-chapter-label">在文档中位置:</span>
+                            <span>目标文档特有章节</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- 结构问题 -->
                 {% if structure_issues %}
                 <div class="structure-issues">
-                    <h3>结构问题</h3>
+                    <h3>⚠️ 结构问题</h3>
                     <ul>
                         {% for issue in structure_issues %}
                         <li>{{ issue }}</li>
@@ -546,15 +805,11 @@
                 </div>
                 {% endif %}
 
-                {% if extra_chapters %}
-                <div class="extra-chapters">
-                    <h3>额外章节 ({{ extra_chapters_count }} 个)</h3>
-                    <p>以下章节在目标文档中存在但模板中没有：</p>
-                    <ul>
-                        {% for chapter in extra_chapters %}
-                        <li>{{ chapter.title }} (H{{ chapter.level }})</li>
-                        {% endfor %}
-                    </ul>
+                <!-- 完整性检查总结 -->
+                {% if not missing_chapters and not extra_chapters and not structure_issues %}
+                <div class="structure-card">
+                    <h4>✅ 章节完整性检查通过</h4>
+                    <p>目标文档的章节结构与模板完全一致，所有必需章节都已包含，没有发现结构问题。</p>
                 </div>
                 {% endif %}
             </section>
@@ -675,11 +930,6 @@
         </div>
     </main>
 
-    <!-- 图表数据 -->
-    <script type="application/json" id="chart-data">
-        {% if violation_chart_data %}{{ violation_chart_data|tojson|safe }}{% else %}[]{% endif %}
-    </script>
-
     <!-- JavaScript 交互功能 -->
     <script>
         // 章节折叠/展开功能
@@ -691,41 +941,8 @@
             icon.classList.toggle('rotated');
         }
 
-        // 创建违规分布图表
-        function createViolationChart() {
-            const chartDataElement = document.getElementById('chart-data');
-            const chartData = chartDataElement ? JSON.parse(chartDataElement.textContent) : [];
-            const chartContainer = document.getElementById('violation-chart');
-            
-            if (!chartData || chartData.length === 0) {
-                chartContainer.innerHTML = '<p>暂无数据</p>';
-                return;
-            }
-            
-            // 定义颜色数组
-            const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#f97316'];
-            
-            const maxCount = Math.max.apply(Math, chartData.map(function(item) { return item.count; }));
-            
-            let html = '';
-            chartData.forEach(function(item, index) {
-                const percentage = (item.count / maxCount) * 100;
-                const color = colors[index % colors.length];
-                html += '<div class="chart-bar">' +
-                    '<div class="bar-fill" style="height: ' + percentage + '%; background-color: ' + color + '"></div>' +
-                    '<div class="bar-value">' + item.count + '</div>' +
-                    '<div class="bar-label">' + item.label + '</div>' +
-                    '</div>';
-            });
-            
-            chartContainer.innerHTML = html;
-        }
-
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 创建图表
-            createViolationChart();
-            
             // 添加平滑滚动
             const anchors = document.querySelectorAll('a[href^="#"]');
             for (let i = 0; i < anchors.length; i++) {

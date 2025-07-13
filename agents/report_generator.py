@@ -87,8 +87,6 @@ class ReportGenerator:
         passed_checks = total_checks - total_issues
         pass_rate = (passed_checks / total_checks * 100) if total_checks > 0 else 100
         
-        # 准备图表数据（不包含颜色，颜色在 HTML 中处理）
-        violation_chart_data = self._prepare_violation_chart_data(content_result)
         
         report_data = {
             # 基本信息
@@ -123,8 +121,6 @@ class ReportGenerator:
             'rules_summary': content_result.rules_summary,
             'severity_summary': content_result.severity_summary,
             
-            # 图表数据（不包含颜色）
-            'violation_chart_data': violation_chart_data,
             
             # 详细统计
             'statistics': self._calculate_detailed_statistics(
@@ -134,17 +130,6 @@ class ReportGenerator:
         
         return report_data
     
-    def _prepare_violation_chart_data(self, content_result: ContentCheckResult) -> List[Dict[str, Any]]:
-        """准备违规类型图表数据（不包含颜色）"""
-        chart_data = []
-        
-        for rule, count in content_result.rules_summary.items():
-            chart_data.append({
-                'label': rule[:30] + '...' if len(rule) > 30 else rule,
-                'count': count
-            })
-        
-        return chart_data
     
     def _calculate_detailed_statistics(self, 
                                      structure_result: StructureCheckResult,
