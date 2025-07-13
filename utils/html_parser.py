@@ -192,7 +192,7 @@ class HTMLParser:
                     # 提取文本内容
                     if current.name in ['p', 'div', 'section', 'article', 'ul', 'ol', 'table', 'pre', 'blockquote']:
                         text = self._clean_text(current.get_text())
-                        if text:
+                        if text and self._is_valid_content(current, text):
                             content_parts.append(text)
                 
                 current = current.next_sibling
@@ -332,6 +332,95 @@ class HTMLParser:
         text = re.sub(r'[\r\n\t]', ' ', text)
         
         return text.strip()
+    
+    def _is_valid_content(self, element: Tag, text: str) -> bool:
+        """验证内容是否有效，过滤掉导航和无意义内容"""
+        try:
+            # 检查内容长度，过滤过短的内容
+            if len(text.strip()) < 10:
+                return False
+            
+            # 检查是否为纯链接内容（链接密度过高）
+            links = element.find_all('a') if element else []
+            if links:
+                link_text_length = sum(len(self._clean_text(link.get_text())) for link in links)
+                total_text_length = len(text)
+                if total_text_length > 0 and link_text_length / total_text_length > 0.8:
+                    logger.debug(f"过滤高链接密度内容: {text[:50]}...")
+                    return False
+            
+            # 检查是否为导航模式文本
+            navigation_patterns = [
+                r'首页\s*[>›]\s*',
+                r'主页\s*[>›]\s*',
+                r'返回\s*[>›]\s*',
+                r'上一页\s*[>›]\s*',
+                r'下一页\s*[>›]\s*',
+                r'目录\s*[>›]\s*',
+                r'导航\s*[>›]\s*'
+            ]
+            
+            for pattern in navigation_patterns:
+                if re.search(pattern, text):
+                    logger.debug(f"过滤导航模式内容: {text[:50]}...")
+                    return False
+            
+            # 检查是否为常见的无意义内容
+            meaningless_patterns = [
+                r'^(编辑|修改|删除|分享|收藏|打印)$',
+                r'^(上传时间|修改时间|创建时间|发布时间)',
+                r'^(作者|创建者|修改者)：\s*$',
+                r'^(标签|分类|关键词)：\s*$',
+                r'^(点击|查看|下载|更多)$'
+            ]
+            
+            for pattern in meaningless_patterns:
+                if re.search(pattern, text.strip()):
+                    logger.debug(f"过滤无意义内容: {text[:50]}...")
+                    return False
+            
+            # 检查CSS类名，过滤明显的导航元素
+            if element and element.get('class'):
+                class_names = ' '.join(element.get('class', []))
+                filter_classes = [
+                    'nav', 'navigation', 'menu', 'breadcrumb', 'sidebar',
+                    'footer', 'header', 'toolbar', 'pagination', 'toc',
+                    'shortcuts', 'metadata', 'actions', 'controls'
+                ]
+                
+                for filter_class in filter_classes:
+                    if filter_class in class_names.lower():
+                        logger.debug(f"过滤导航类元素: {class_names}")
+                        return False
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"内容验证失败: {e}")
+            return True  # 出错时默认保留内容
+    
+    def extract_number(self, text: str) -> str:
+        """从文本中提取数字编号"""
+        try:
+            # 匹配常见的章节编号模式
+            patterns = [
+                r'^(\d+(?:\.\d+)*)',  # 1.1, 1.2.3 等
+                r'^第(\d+)章',        # 第1章
+                r'^第(\d+)节',        # 第1节
+                r'^(\d+)',            # 纯数字
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, text.strip())
+                if match:
+                    return match.group(1)
+            
+            # 如果没有找到数字，返回原文本的前10个字符作为标识
+            return text.strip()[:10]
+            
+        except Exception as e:
+            logger.warning(f"提取编号失败: {e}")
+            return text.strip()[:10]
     
     def download_image(self, image_info: ImageInfo, save_dir: str = "temp") -> str:
         """下载图像到本地"""
