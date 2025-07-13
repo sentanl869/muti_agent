@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 
 from utils.html_parser import HTMLParser
 from config.config import config
+from utils.retry_handler import BackoffRetry, HTTP_RETRY_CONFIG, RetryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class DocumentFetcher:
     """文档获取 Agent"""
     
-    def __init__(self):
+    def __init__(self, retry_config=None):
         self.session = requests.Session()
         self.parser = HTMLParser()
         
@@ -30,6 +31,18 @@ class DocumentFetcher:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
         })
+        
+        # 初始化重试处理器
+        if retry_config is None:
+            retry_config = RetryConfig(
+                max_retries=config.retry.max_retries,
+                initial_delay=config.retry.initial_delay,
+                max_delay=config.retry.max_delay,
+                backoff_factor=config.retry.backoff_factor,
+                enable_jitter=config.retry.enable_jitter,
+                retryable_exceptions=HTTP_RETRY_CONFIG.retryable_exceptions
+            )
+        self.retry_handler = BackoffRetry(retry_config)
         
         # 加载 Cookie
         self._load_cookies()
@@ -160,44 +173,33 @@ class DocumentFetcher:
     
     def _make_request(self, url: str) -> requests.Response:
         """发送 HTTP 请求"""
-        max_retries = config.document.max_retries
-        timeout = config.document.timeout
+        def _do_request():
+            timeout = config.document.timeout
+            
+            response = self.session.get(
+                url,
+                timeout=timeout,
+                allow_redirects=True
+            )
+            
+            # 检查响应状态
+            response.raise_for_status()
+            
+            # 检查内容类型
+            content_type = response.headers.get('content-type', '').lower()
+            if 'text/html' not in content_type:
+                logger.warning(f"响应内容类型不是 HTML: {content_type}")
+            
+            # 检查内容长度
+            if len(response.text) < 100:
+                raise ValueError("响应内容过短，可能不是有效的文档")
+            
+            logger.debug(f"请求成功: {response.status_code}, {len(response.text)} 字符")
+            
+            return response
         
-        for attempt in range(max_retries):
-            try:
-                logger.debug(f"请求尝试 {attempt + 1}/{max_retries}: {url}")
-                
-                response = self.session.get(
-                    url,
-                    timeout=timeout,
-                    allow_redirects=True
-                )
-                
-                # 检查响应状态
-                response.raise_for_status()
-                
-                # 检查内容类型
-                content_type = response.headers.get('content-type', '').lower()
-                if 'text/html' not in content_type:
-                    logger.warning(f"响应内容类型不是 HTML: {content_type}")
-                
-                # 检查内容长度
-                if len(response.text) < 100:
-                    raise ValueError("响应内容过短，可能不是有效的文档")
-                
-                logger.debug(f"请求成功: {response.status_code}, {len(response.text)} 字符")
-                
-                return response
-                
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"请求失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-                
-                if attempt == max_retries - 1:
-                    raise
-                
-                # 等待后重试
-                import time
-                time.sleep(2 ** attempt)  # 指数退避
+        # 使用重试机制执行请求
+        return self.retry_handler.execute_with_retry(_do_request)
     
     def validate_document(self, document: Dict[str, Any]) -> bool:
         """验证文档内容是否有效"""

@@ -34,11 +34,21 @@ class VisionConfig:
 
 
 @dataclass
+class RetryConfig:
+    """重试配置"""
+    max_retries: int = 10
+    initial_delay: float = 1.0
+    max_delay: float = 30.0
+    backoff_factor: float = 2.0
+    enable_jitter: bool = True
+
+
+@dataclass
 class DocumentConfig:
     """文档获取配置"""
     cookies_file: str = "config/cookies.txt"
     timeout: int = 30
-    max_retries: int = 3
+    max_retries: int = 3  # 保留原有配置以兼容性，但会被 RetryConfig 覆盖
     chunk_size: int = 32000  # 32K 字符，确保不超过模型上下文限制
 
 
@@ -78,6 +88,7 @@ class Config:
         self.document = DocumentConfig()
         self.report = ReportConfig()
         self.logging = LoggingConfig()
+        self.retry = RetryConfig()
         
         # 创建输出目录
         os.makedirs(self.report.output_dir, exist_ok=True)

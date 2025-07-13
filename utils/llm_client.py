@@ -14,6 +14,7 @@ from openai import OpenAI
 
 from config.config import config
 from prompts import DocumentCheckerPrompts
+from utils.retry_handler import BackoffRetry, LLM_RETRY_CONFIG, RetryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,17 +52,28 @@ class RateLimiter:
 class LLMClient:
     """文本 LLM 客户端"""
     
-    def __init__(self, llm_config=None):
+    def __init__(self, llm_config=None, retry_config=None):
         self.config = llm_config or config.llm
         self.client = OpenAI(
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
         self.rate_limiter = RateLimiter(self.config.request_interval)
+        
+        # 初始化重试处理器
+        if retry_config is None:
+            retry_config = RetryConfig(
+                max_retries=config.retry.max_retries,
+                initial_delay=config.retry.initial_delay,
+                max_delay=config.retry.max_delay,
+                backoff_factor=config.retry.backoff_factor,
+                enable_jitter=config.retry.enable_jitter
+            )
+        self.retry_handler = BackoffRetry(retry_config)
     
     def chat(self, prompt: str, system_prompt: str = None) -> str:
         """发送聊天请求"""
-        try:
+        def _make_request():
             # 频率限制
             self.rate_limiter.wait_if_needed()
             
@@ -79,14 +91,13 @@ class LLMClient:
             )
             
             return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"LLM 请求失败: {e}")
-            raise
+        
+        # 使用重试机制执行请求
+        return self.retry_handler.execute_with_retry(_make_request)
     
     def chat_with_context(self, messages: List[Dict[str, str]]) -> str:
         """发送带上下文的聊天请求"""
-        try:
+        def _make_request():
             # 频率限制
             self.rate_limiter.wait_if_needed()
             
@@ -99,10 +110,9 @@ class LLMClient:
             )
             
             return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"LLM 上下文请求失败: {e}")
-            raise
+        
+        # 使用重试机制执行请求
+        return self.retry_handler.execute_with_retry(_make_request)
     
     def update_rate_limit(self, interval: float):
         """更新请求频率限制"""
@@ -113,17 +123,28 @@ class LLMClient:
 class VisionClient:
     """视觉模型客户端"""
     
-    def __init__(self, vision_config=None):
+    def __init__(self, vision_config=None, retry_config=None):
         self.config = vision_config or config.vision
         self.client = OpenAI(
             api_key=self.config.api_key,
             base_url=self.config.base_url
         )
         self.rate_limiter = RateLimiter(self.config.request_interval)
+        
+        # 初始化重试处理器
+        if retry_config is None:
+            retry_config = RetryConfig(
+                max_retries=config.retry.max_retries,
+                initial_delay=config.retry.initial_delay,
+                max_delay=config.retry.max_delay,
+                backoff_factor=config.retry.backoff_factor,
+                enable_jitter=config.retry.enable_jitter
+            )
+        self.retry_handler = BackoffRetry(retry_config)
     
     def analyze_image(self, image_path: str, prompt: str = None) -> str:
         """分析图像并返回描述"""
-        try:
+        def _make_request():
             # 频率限制
             self.rate_limiter.wait_if_needed()
             
@@ -132,13 +153,15 @@ class VisionClient:
             
             # 默认提示词
             if not prompt:
-                prompt = DocumentCheckerPrompts.IMAGE_ANALYSIS_DEFAULT
+                analysis_prompt = DocumentCheckerPrompts.IMAGE_ANALYSIS_DEFAULT
+            else:
+                analysis_prompt = prompt
             
             messages = [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": analysis_prompt},
                         {
                             "type": "image_url",
                             "image_url": {
@@ -158,7 +181,10 @@ class VisionClient:
             )
             
             return response.choices[0].message.content.strip()
-            
+        
+        try:
+            # 使用重试机制执行请求
+            return self.retry_handler.execute_with_retry(_make_request)
         except Exception as e:
             logger.error(f"图像分析失败: {e}")
             return f"图像分析失败: {str(e)}"
