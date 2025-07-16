@@ -82,15 +82,11 @@ class LLMClient:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
             
-            response = self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout
-            )
-            
-            return response.choices[0].message.content.strip()
+            # 根据配置选择实现方式
+            if self.config.stream:
+                return self._stream_chat(messages)
+            else:
+                return self._non_stream_chat(messages)
         
         # 使用重试机制执行请求
         return self.retry_handler.execute_with_retry(_make_request)
@@ -101,18 +97,54 @@ class LLMClient:
             # 频率限制
             self.rate_limiter.wait_if_needed()
             
-            response = self.client.chat.completions.create(
+            # 根据配置选择实现方式
+            if self.config.stream:
+                return self._stream_chat(messages)
+            else:
+                return self._non_stream_chat(messages)
+        
+        # 使用重试机制执行请求
+        return self.retry_handler.execute_with_retry(_make_request)
+    
+    def _non_stream_chat(self, messages: List[Dict[str, str]]) -> str:
+        """非流式聊天实现"""
+        response = self.client.chat.completions.create(
+            model=self.config.model,
+            messages=messages,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            timeout=self.config.timeout,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            stream=False
+        )
+        return response.choices[0].message.content.strip()
+    
+    def _stream_chat(self, messages: List[Dict[str, str]]) -> str:
+        """流式聊天实现并聚合为完整文本"""
+        try:
+            stream = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout
+                timeout=self.config.timeout,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                stream=True
             )
             
-            return response.choices[0].message.content.strip()
-        
-        # 使用重试机制执行请求
-        return self.retry_handler.execute_with_retry(_make_request)
+            # 聚合所有流式输出
+            content_parts = []
+            for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    content_parts.append(chunk.choices[0].delta.content)
+                if chunk.choices[0].delta.reasoning_content is not None:
+                    content_parts.append(chunk.choices[0].delta.reasoning_content)
+            
+            return ''.join(content_parts).strip()
+            
+        except Exception as e:
+            logger.error(f"流式输出聚合失败: {e}")
+            raise
     
     def update_rate_limit(self, interval: float):
         """更新请求频率限制"""

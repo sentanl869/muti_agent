@@ -17,8 +17,9 @@ class LLMConfig:
     temperature: float = 0.1
     max_tokens: int = 4000
     max_context_length: int = 64000  # 最大上下文长度
-    timeout: int = 60
+    timeout: int = 120
     request_interval: float = 1.0  # 请求间隔（秒），默认1秒
+    stream: bool = True  # 是否启用流式输出并自动聚合
 
 
 @dataclass
@@ -74,15 +75,15 @@ class Config:
     
     def __init__(self):
         self.llm = LLMConfig(
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.siliconflow.cn/v1"),
             api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+            model=os.getenv("DEEPSEEK_MODEL", "Pro/deepseek-ai/DeepSeek-V3")
         )
         
         self.vision = VisionConfig(
-            base_url=os.getenv("VISION_BASE_URL", "https://api.deepseek.com/v1"),
+            base_url=os.getenv("VISION_BASE_URL", "https://api.siliconflow.cn/v1"),
             api_key=os.getenv("VISION_API_KEY", ""),
-            model=os.getenv("VISION_MODEL", "deepseek-vl")
+            model=os.getenv("VISION_MODEL", "Qwen/Qwen2.5-VL-72B-Instruct")
         )
         
         self.document = DocumentConfig()
