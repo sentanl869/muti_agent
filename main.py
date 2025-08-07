@@ -113,6 +113,25 @@ def parse_arguments():
         help='详细输出模式'
     )
     
+    # 检查功能开关参数
+    parser.add_argument(
+        '--disable-structure-check',
+        action='store_true',
+        help='禁用结构完整性检查'
+    )
+    
+    parser.add_argument(
+        '--disable-content-check',
+        action='store_true',
+        help='禁用内容规范检查'
+    )
+    
+    parser.add_argument(
+        '--disable-image-check',
+        action='store_true',
+        help='禁用图像检查'
+    )
+    
     return parser.parse_args()
 
 
@@ -143,6 +162,57 @@ def validate_arguments(args):
         print("参数验证失败:")
         for error in errors:
             print(f"  - {error}")
+        return False
+    
+    return True
+
+
+def apply_check_config_from_args(args):
+    """
+    根据命令行参数覆盖检查配置
+    优先级：命令行参数 > 环境变量 > 配置文件默认值
+    """
+    
+    # 只有当命令行明确指定disable时，才覆盖配置
+    if args.disable_structure_check:
+        config.check.enable_structure_check = False
+        print("📋 命令行覆盖: 禁用结构检查")
+        
+    if args.disable_content_check:
+        config.check.enable_content_check = False
+        print("📝 命令行覆盖: 禁用内容检查")
+        
+    if args.disable_image_check:
+        config.check.enable_image_check = False
+        print("🖼️ 命令行覆盖: 禁用图像检查")
+
+
+def print_final_config():
+    """打印最终的检查配置"""
+    print("\n📊 最终检查配置:")
+    print(f"  结构检查: {'✅ 启用' if config.check.enable_structure_check else '❌ 禁用'}")
+    print(f"  内容检查: {'✅ 启用' if config.check.enable_content_check else '❌ 禁用'}")
+    print(f"  图像检查: {'✅ 启用' if config.check.enable_image_check else '❌ 禁用'}")
+    
+    enabled_checks = config.check.get_enabled_checks()
+    if enabled_checks:
+        print(f"  总计启用: {len(enabled_checks)} 项 ({', '.join(enabled_checks)})")
+    else:
+        print("  ⚠️ 警告: 没有启用任何检查功能")
+
+
+def validate_check_config():
+    """验证检查配置"""
+    if not config.check.has_any_check_enabled():
+        print("\n❌ 错误: 没有启用任何检查功能")
+        print("当前配置状态:")
+        print(f"  结构检查: {'启用' if config.check.enable_structure_check else '禁用'}")
+        print(f"  内容检查: {'启用' if config.check.enable_content_check else '禁用'}")
+        print(f"  图像检查: {'启用' if config.check.enable_image_check else '禁用'}")
+        print("\n解决方案:")
+        print("1. 修改配置文件中的默认值")
+        print("2. 设置环境变量: export ENABLE_STRUCTURE_CHECK=true")
+        print("3. 移除部分 --disable-* 命令行参数")
         return False
     
     return True
@@ -210,7 +280,14 @@ def main():
         if not validate_arguments(args):
             sys.exit(1)
         
-        # 应用命令行参数覆盖配置
+        # 应用检查配置
+        apply_check_config_from_args(args)
+        
+        # 验证检查配置
+        if not validate_check_config():
+            sys.exit(1)
+        
+        # 应用其他命令行参数覆盖配置
         if args.output_dir:
             config.report.output_dir = args.output_dir
         
@@ -225,6 +302,9 @@ def main():
         logger.info(f"模板文档 URL: {args.template_url}")
         logger.info(f"目标文档 URL: {args.target_url}")
         
+        enabled_checks = config.check.get_enabled_checks()
+        logger.info(f"启用的检查功能: {enabled_checks}")
+        
         if args.verbose:
             print(f"模板文档 URL: {args.template_url}")
             if args.template_page_id:
@@ -234,6 +314,7 @@ def main():
                 print(f"目标页面 ID: {args.target_page_id}")
             print(f"输出目录: {config.report.output_dir}")
             print(f"日志级别: {config.logging.level}")
+            print_final_config()
         
         # 试运行模式
         if args.dry_run:

@@ -96,12 +96,22 @@ class ReportGenerator:
             structure_result.extra_chapters
         )
         
+        # 获取启用的检查功能
+        enabled_checks = config.check.get_enabled_checks()
+        
         report_data = {
             # 基本信息
             'document_name': target_doc_info.get('meta_info', {}).get('title', '未知文档'),
             'check_time': datetime.now().strftime('%Y年%m月%d日 %H:%M:%S'),
             'template_url': template_doc_info.get('url', ''),
             'target_url': target_doc_info.get('url', ''),
+            
+            # 检查功能开关状态
+            'show_structure_check': 'structure' in enabled_checks,
+            'show_content_check': 'content' in enabled_checks,
+            'show_image_check': config.check.enable_image_check,
+            'enabled_checks': enabled_checks,
+            'total_enabled_checks': len(enabled_checks),
             
             # 总体统计
             'overall_passed': overall_passed,
@@ -112,27 +122,26 @@ class ReportGenerator:
             'total_chapters': len(target_doc_info.get('chapters', [])),
             'template_chapters': len(template_doc_info.get('chapters', [])),
             
-            # 结构检查结果
-            'structure_passed': structure_result.passed,
-            'missing_chapters_count': len(structure_result.missing_chapters),
-            'extra_chapters_count': len(structure_result.extra_chapters),
-            'structure_similarity': round(structure_result.similarity_score * 100, 1),
-            'missing_chapters': structure_result.missing_chapters,
-            'extra_chapters': structure_result.extra_chapters,
-            'structure_issues': structure_result.structure_issues,
+            # 结构检查结果（只有启用时才提供数据）
+            'structure_passed': structure_result.passed if 'structure' in enabled_checks else True,
+            'missing_chapters_count': len(structure_result.missing_chapters) if 'structure' in enabled_checks else 0,
+            'extra_chapters_count': len(structure_result.extra_chapters) if 'structure' in enabled_checks else 0,
+            'structure_similarity': round(structure_result.similarity_score * 100, 1) if 'structure' in enabled_checks else 100,
+            'missing_chapters': structure_result.missing_chapters if 'structure' in enabled_checks else [],
+            'extra_chapters': structure_result.extra_chapters if 'structure' in enabled_checks else [],
+            'structure_issues': structure_result.structure_issues if 'structure' in enabled_checks else [],
             
             # 结构树数据
-            'document_structure_tree': document_structure_tree,
-            'template_structure_tree': template_structure_tree,
+            'document_structure_tree': document_structure_tree if 'structure' in enabled_checks else [],
+            'template_structure_tree': template_structure_tree if 'structure' in enabled_checks else [],
             
-            # 内容检查结果
-            'content_passed': content_result.passed,
-            'total_violations': content_result.total_violations,
-            'violation_chapters': [ch for ch in content_result.chapters if not ch.passed],
-            'violation_results': content_result.chapters,
-            'rules_summary': content_result.rules_summary,
-            'severity_summary': content_result.severity_summary,
-            
+            # 内容检查结果（只有启用时才提供数据）
+            'content_passed': content_result.passed if 'content' in enabled_checks else True,
+            'total_violations': content_result.total_violations if 'content' in enabled_checks else 0,
+            'violation_chapters': [ch for ch in content_result.chapters if not ch.passed] if 'content' in enabled_checks else [],
+            'violation_results': content_result.chapters if 'content' in enabled_checks else [],
+            'rules_summary': content_result.rules_summary if 'content' in enabled_checks else {},
+            'severity_summary': content_result.severity_summary if 'content' in enabled_checks else {"critical": 0, "warning": 0, "info": 0},
             
             # 详细统计
             'statistics': self._calculate_detailed_statistics(

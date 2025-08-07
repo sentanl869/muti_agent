@@ -4,7 +4,7 @@
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from dataclasses import dataclass
 
 
@@ -70,6 +70,29 @@ class LoggingConfig:
     backup_count: int = 5
 
 
+@dataclass
+class CheckConfig:
+    """检查功能配置"""
+    # 默认配置：结构检查开启，内容检查关闭
+    enable_structure_check: bool = True
+    enable_content_check: bool = False
+    enable_image_check: bool = False  # 图像检查在内容检查内部进行
+    
+    def get_enabled_checks(self) -> List[str]:
+        """获取启用的检查类型列表"""
+        enabled = []
+        if self.enable_structure_check:
+            enabled.append('structure')
+        if self.enable_content_check:
+            enabled.append('content')
+        return enabled
+    
+    def has_any_check_enabled(self) -> bool:
+        """检查是否有任何检查功能启用"""
+        return (self.enable_structure_check or 
+                self.enable_content_check)
+
+
 class Config:
     """主配置类"""
     
@@ -91,10 +114,24 @@ class Config:
         self.logging = LoggingConfig()
         self.retry = RetryConfig()
         
+        # 检查功能配置，支持环境变量覆盖
+        self.check = CheckConfig(
+            enable_structure_check=self._get_bool_env('ENABLE_STRUCTURE_CHECK', True),
+            enable_content_check=self._get_bool_env('ENABLE_CONTENT_CHECK', False),
+            enable_image_check=self._get_bool_env('ENABLE_IMAGE_CHECK', False)
+        )
+        
         # 创建输出目录
         os.makedirs(self.report.output_dir, exist_ok=True)
         os.makedirs(self.logging.log_dir, exist_ok=True)
         os.makedirs("temp", exist_ok=True)
+    
+    def _get_bool_env(self, key: str, default: bool) -> bool:
+        """从环境变量获取布尔值"""
+        value = os.getenv(key)
+        if value is None:
+            return default
+        return value.lower() in ('true', '1', 'yes', 'on')
     
     def update_llm_config(self, base_url: str = None, api_key: str = None, model: str = None):
         """更新 LLM 配置"""

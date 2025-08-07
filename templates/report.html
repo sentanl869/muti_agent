@@ -741,6 +741,7 @@
     <main class="report-content">
         <div class="container">
             <!-- 章节完整性检查结果 -->
+            {% if show_structure_check %}
             <section class="section">
                 <div class="section-header">
                     <h2>📋 章节完整性检查</h2>
@@ -869,8 +870,10 @@
                 </div>
                 {% endif %}
             </section>
+            {% endif %}
 
             <!-- 内容规范检查结果 -->
+            {% if show_content_check %}
             <section class="section">
                 <div class="section-header">
                     <h2>📝 内容规范检查</h2>
@@ -946,6 +949,7 @@
                 <p>✅ 未发现内容规范违规项</p>
                 {% endif %}
             </section>
+            {% endif %}
 
             <!-- 统计信息 -->
             {% if statistics %}

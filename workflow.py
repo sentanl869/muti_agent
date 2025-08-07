@@ -59,29 +59,48 @@ class DocumentCheckWorkflow:
         self.app = self.workflow.compile(checkpointer=MemorySaver())
     
     def _create_workflow(self) -> StateGraph:
-        """创建 LangGraph 工作流"""
+        """根据配置动态创建 LangGraph 工作流"""
         
         # 创建状态图
         workflow = StateGraph(WorkflowState)
         
-        # 添加节点
+        # 基础节点（始终需要）
         workflow.add_node("fetch_template", self._fetch_template_document)
         workflow.add_node("fetch_target", self._fetch_target_document)
         workflow.add_node("integrate_content", self._integrate_content)
-        workflow.add_node("check_structure", self._check_structure)
-        workflow.add_node("check_content", self._check_content)
         workflow.add_node("generate_report", self._generate_report)
         workflow.add_node("handle_error", self._handle_error)
+        
+        # 根据配置添加检查节点
+        check_nodes = []
+        
+        if config.check.enable_structure_check:
+            workflow.add_node("check_structure", self._check_structure)
+            check_nodes.append("check_structure")
+            logger.info("已添加结构检查节点")
+        
+        if config.check.enable_content_check:
+            workflow.add_node("check_content", self._check_content)
+            check_nodes.append("check_content")
+            logger.info("已添加内容检查节点")
         
         # 设置入口点
         workflow.set_entry_point("fetch_template")
         
-        # 添加边
+        # 构建基础边
         workflow.add_edge("fetch_template", "fetch_target")
         workflow.add_edge("fetch_target", "integrate_content")
-        workflow.add_edge("integrate_content", "check_structure")
-        workflow.add_edge("check_structure", "check_content")
-        workflow.add_edge("check_content", "generate_report")
+        
+        # 动态连接检查节点
+        if check_nodes:
+            workflow.add_edge("integrate_content", check_nodes[0])
+            for i in range(len(check_nodes) - 1):
+                workflow.add_edge(check_nodes[i], check_nodes[i + 1])
+            workflow.add_edge(check_nodes[-1], "generate_report")
+        else:
+            # 如果没有检查节点，直接生成报告
+            workflow.add_edge("integrate_content", "generate_report")
+        
         workflow.add_edge("generate_report", END)
         workflow.add_edge("handle_error", END)
         
@@ -108,29 +127,24 @@ class DocumentCheckWorkflow:
             "integrate_content",
             self._should_continue,
             {
-                "continue": "check_structure",
+                "continue": check_nodes[0] if check_nodes else "generate_report",
                 "error": "handle_error"
             }
         )
         
-        workflow.add_conditional_edges(
-            "check_structure",
-            self._should_continue,
-            {
-                "continue": "check_content",
-                "error": "handle_error"
-            }
-        )
+        # 为每个检查节点添加条件边
+        for i, node in enumerate(check_nodes):
+            next_node = check_nodes[i + 1] if i + 1 < len(check_nodes) else "generate_report"
+            workflow.add_conditional_edges(
+                node,
+                self._should_continue,
+                {
+                    "continue": next_node,
+                    "error": "handle_error"
+                }
+            )
         
-        workflow.add_conditional_edges(
-            "check_content",
-            self._should_continue,
-            {
-                "continue": "generate_report",
-                "error": "handle_error"
-            }
-        )
-        
+        logger.info(f"工作流创建完成，包含检查节点: {check_nodes}")
         return workflow
     
     def _should_continue(self, state: WorkflowState) -> str:

@@ -308,9 +308,13 @@ class ContentChecker:
             title_violations = self._check_title_rules(chapter)
             violations.extend(title_violations)
             
-            # 检查图像规范
-            image_violations = self._check_image_rules(chapter)
-            violations.extend(image_violations)
+            # 检查图像规范（根据配置决定是否执行）
+            if config.check.enable_image_check:
+                image_violations = self._check_image_rules(chapter)
+                violations.extend(image_violations)
+                logger.debug(f"章节 {chapter.title} 图像检查完成: {len(image_violations)} 个违规项")
+            else:
+                logger.debug(f"章节 {chapter.title} 跳过图像检查（已禁用）")
             
             # 检查格式规范
             format_violations = self._check_format_rules(chapter)
