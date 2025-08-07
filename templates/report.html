@@ -289,6 +289,17 @@
             background: var(--gray-100);
         }
 
+        .violation-badge {
+            margin-left: auto;
+            margin-right: 1rem;
+            padding: 0.25rem 0.75rem;
+            background: var(--error-color);
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
         .violations-list {
             display: none;
             padding: 1rem 0;
@@ -397,47 +408,6 @@
             color: var(--gray-700);
         }
 
-        /* 新增章节样式 */
-        .extra-chapters-container {
-            margin: 1.5rem 0;
-        }
-
-        .extra-chapter {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: var(--border-radius);
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            position: relative;
-        }
-
-        .extra-chapter::before {
-            content: "➕";
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            font-size: 1.2rem;
-        }
-
-        .extra-chapter-title {
-            font-weight: 600;
-            color: var(--primary-color);
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .extra-chapter-info {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--gray-600);
-        }
-
-        .extra-chapter-label {
-            font-weight: 500;
-            color: var(--gray-700);
-        }
 
         /* 章节对比树状图样式 */
         .structure-tree {
@@ -762,13 +732,6 @@
                     </div>
                 </div>
                 
-                <div class="stat-card">
-                    <div class="stat-icon">📈</div>
-                    <div class="stat-content">
-                        <h3>{{ pass_rate }}%</h3>
-                        <p>通过率</p>
-                    </div>
-                </div>
             </div>
 
         </div>
@@ -885,21 +848,6 @@
                 </div>
                 {% endif %}
 
-                <!-- 新增章节详情 -->
-                {% if extra_chapters %}
-                <div class="extra-chapters-container">
-                    <h3>➕ 新增章节详情 ({{ extra_chapters_count }} 个)</h3>
-                    <p>以下章节在目标文档中存在，但模板中没有：</p>
-                    <div class="chapters-simple-list">
-                        {% for chapter in extra_chapters %}
-                        <div class="extra-chapter-simple">
-                            <span class="chapter-level-tag extra">H{{ chapter.level }}</span>
-                            <span class="chapter-title-simple">{{ chapter.title }}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
 
                 <!-- 结构问题 -->
                 {% if structure_issues %}
