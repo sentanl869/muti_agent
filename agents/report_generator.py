@@ -76,25 +76,35 @@ class ReportGenerator:
                            target_doc_info: Dict[str, Any]) -> Dict[str, Any]:
         """准备报告数据"""
         
-        # 计算总体统计
-        total_issues = len(structure_result.missing_chapters) + content_result.total_violations
-        overall_passed = structure_result.passed and content_result.passed
+        # 计算总体统计（安全访问结果对象）
+        structure_violations = len(structure_result.missing_chapters) if structure_result else 0
+        content_violations = content_result.total_violations if content_result else 0
+        total_issues = structure_violations + content_violations
+        
+        structure_passed = structure_result.passed if structure_result else True
+        content_passed = content_result.passed if content_result else True
+        overall_passed = structure_passed and content_passed
         
         # 计算通过率
-        total_checks = len(structure_result.template_structure.children) + sum(
+        structure_checks = len(structure_result.template_structure.children) if structure_result else 0
+        content_checks = sum(
             chapter.total_rules_checked for chapter in content_result.chapters
-        )
+        ) if content_result else 0
+        total_checks = structure_checks + content_checks
         passed_checks = total_checks - total_issues
         pass_rate = (passed_checks / total_checks * 100) if total_checks > 0 else 100
         
         
-        # 转换结构树数据
-        document_structure_tree, template_structure_tree = self._convert_structure_trees(
-            structure_result.target_structure, 
-            structure_result.template_structure,
-            structure_result.missing_chapters,
-            structure_result.extra_chapters
-        )
+        # 转换结构树数据（安全访问）
+        if structure_result:
+            document_structure_tree, template_structure_tree = self._convert_structure_trees(
+                structure_result.target_structure, 
+                structure_result.template_structure,
+                structure_result.missing_chapters,
+                structure_result.extra_chapters
+            )
+        else:
+            document_structure_tree, template_structure_tree = [], []
         
         # 获取启用的检查功能
         enabled_checks = config.check.get_enabled_checks()
@@ -123,25 +133,25 @@ class ReportGenerator:
             'template_chapters': len(template_doc_info.get('chapters', [])),
             
             # 结构检查结果（只有启用时才提供数据）
-            'structure_passed': structure_result.passed if 'structure' in enabled_checks else True,
-            'missing_chapters_count': len(structure_result.missing_chapters) if 'structure' in enabled_checks else 0,
-            'extra_chapters_count': len(structure_result.extra_chapters) if 'structure' in enabled_checks else 0,
-            'structure_similarity': round(structure_result.similarity_score * 100, 1) if 'structure' in enabled_checks else 100,
-            'missing_chapters': structure_result.missing_chapters if 'structure' in enabled_checks else [],
-            'extra_chapters': structure_result.extra_chapters if 'structure' in enabled_checks else [],
-            'structure_issues': structure_result.structure_issues if 'structure' in enabled_checks else [],
+            'structure_passed': structure_result.passed if structure_result and 'structure' in enabled_checks else True,
+            'missing_chapters_count': len(structure_result.missing_chapters) if structure_result and 'structure' in enabled_checks else 0,
+            'extra_chapters_count': len(structure_result.extra_chapters) if structure_result and 'structure' in enabled_checks else 0,
+            'structure_similarity': round(structure_result.similarity_score * 100, 1) if structure_result and 'structure' in enabled_checks else 100,
+            'missing_chapters': structure_result.missing_chapters if structure_result and 'structure' in enabled_checks else [],
+            'extra_chapters': structure_result.extra_chapters if structure_result and 'structure' in enabled_checks else [],
+            'structure_issues': structure_result.structure_issues if structure_result and 'structure' in enabled_checks else [],
             
             # 结构树数据
             'document_structure_tree': document_structure_tree if 'structure' in enabled_checks else [],
             'template_structure_tree': template_structure_tree if 'structure' in enabled_checks else [],
             
             # 内容检查结果（只有启用时才提供数据）
-            'content_passed': content_result.passed if 'content' in enabled_checks else True,
-            'total_violations': content_result.total_violations if 'content' in enabled_checks else 0,
-            'violation_chapters': [ch for ch in content_result.chapters if not ch.passed] if 'content' in enabled_checks else [],
-            'violation_results': content_result.chapters if 'content' in enabled_checks else [],
-            'rules_summary': content_result.rules_summary if 'content' in enabled_checks else {},
-            'severity_summary': content_result.severity_summary if 'content' in enabled_checks else {"critical": 0, "warning": 0, "info": 0},
+            'content_passed': content_result.passed if content_result and 'content' in enabled_checks else True,
+            'total_violations': content_result.total_violations if content_result and 'content' in enabled_checks else 0,
+            'violation_chapters': [ch for ch in content_result.chapters if not ch.passed] if content_result and 'content' in enabled_checks else [],
+            'violation_results': content_result.chapters if content_result and 'content' in enabled_checks else [],
+            'rules_summary': content_result.rules_summary if content_result and 'content' in enabled_checks else {},
+            'severity_summary': content_result.severity_summary if content_result and 'content' in enabled_checks else {"critical": 0, "warning": 0, "info": 0},
             
             # 详细统计
             'statistics': self._calculate_detailed_statistics(
@@ -178,8 +188,8 @@ class ReportGenerator:
             'total_images': total_images,
             'total_content_length': total_content_length,
             'avg_chapter_length': avg_chapter_length,
-            'chapters_with_violations': len([ch for ch in content_result.chapters if not ch.passed]),
-            'chapters_without_violations': len([ch for ch in content_result.chapters if ch.passed])
+            'chapters_with_violations': len([ch for ch in content_result.chapters if not ch.passed]) if content_result else 0,
+            'chapters_without_violations': len([ch for ch in content_result.chapters if ch.passed]) if content_result else 0
         }
         
         return statistics
@@ -198,6 +208,16 @@ class ReportGenerator:
             tuple: (目标文档结构树数据, 模板文档结构树数据)
         """
         try:
+            # 添加空值检查
+            if not target_structure or not template_structure:
+                logger.warning("结构树数据为空，返回空列表")
+                return [], []
+                
+            if not missing_chapters:
+                missing_chapters = []
+            if not extra_chapters:
+                extra_chapters = []
+            
             # 创建缺失章节标题集合，用于快速查找
             missing_titles = {ch.title for ch in missing_chapters}
             extra_titles = {ch.title for ch in extra_chapters}

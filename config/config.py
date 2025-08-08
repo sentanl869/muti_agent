@@ -157,6 +157,22 @@ class Config:
             raise ValueError("LLM API key is required")
         if not self.vision.api_key:
             raise ValueError("Vision API key is required")
+        
+        # 验证检查配置的合理性
+        self.validate_check_config()
+        return True
+    
+    def validate_check_config(self) -> bool:
+        """验证检查配置的合理性"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not self.check.has_any_check_enabled():
+            logger.warning("所有检查功能都已禁用，将只生成基础报告")
+        
+        enabled_checks = self.check.get_enabled_checks()
+        logger.info(f"已启用的检查功能: {enabled_checks}")
+        
         return True
     
     def to_dict(self) -> Dict[str, Any]:
