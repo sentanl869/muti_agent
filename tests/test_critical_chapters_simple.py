@@ -97,9 +97,9 @@ def test_critical_chapters_basic():
     checker = StructureChecker()
     
     # 重写LLM检查方法，避免实际调用LLM
-    def mock_llm_check(required_chapter: str, first_level_titles: List[str]) -> bool:
+    def mock_llm_check(required_chapter: str, critical_level_titles: List[str]) -> bool:
         """模拟LLM检查，基于简单规则"""
-        for title in first_level_titles:
+        for title in critical_level_titles:
             if "稳定" in title and required_chapter == "可靠性":
                 return True
             if "信息安全" in title and required_chapter == "安全性":
@@ -160,7 +160,7 @@ def test_structure_completeness_integration():
     checker = StructureChecker()
     
     # 重写LLM检查方法，避免实际调用LLM
-    def mock_llm_check(required_chapter: str, first_level_titles: List[str]) -> bool:
+    def mock_llm_check(required_chapter: str, critical_level_titles: List[str]) -> bool:
         return False  # 模拟找不到匹配
     
     # 重写LLM相似度检查方法，避免实际调用LLM
@@ -195,7 +195,7 @@ def test_structure_completeness_integration():
     assert not result.passed, "应该因为缺失关键章节而检查失败"
     
     # 检查结构问题中是否包含关键章节缺失信息
-    critical_issues = [issue for issue in result.structure_issues if "缺失关键一级章节" in issue]
+    critical_issues = [issue for issue in result.structure_issues if "缺失关键章节" in issue]
     logger.info(f"关键章节相关问题: {critical_issues}")
     assert len(critical_issues) > 0, "结构问题中应该包含关键章节缺失信息"
     

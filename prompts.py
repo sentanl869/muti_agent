@@ -143,9 +143,9 @@ class DocumentCheckerPrompts:
     IMAGE_DESCRIPTION_FOR_MIXED_CONTENT = """请描述图片{image_number}的内容，重点关注与文档规范相关的信息。"""
 
     # 关键章节检查提示词
-    CRITICAL_CHAPTER_CHECK = """请判断以下一级章节列表中是否包含与"{required_chapter}"相关的章节：
+    CRITICAL_CHAPTER_CHECK = """请判断以下一到三级章节列表中是否包含与"{required_chapter}"相关的章节：
 
-一级章节列表：
+一到三级章节列表：
 {chapter_list}
 
 判断标准：

@@ -85,7 +85,7 @@ class StructureChecker:
             
             # 将缺失的关键章节添加到结构问题中
             for missing_critical in missing_critical_chapters:
-                structure_issues.append(f"缺失关键一级章节: {missing_critical}")
+                structure_issues.append(f"缺失关键章节: {missing_critical}")
             
             # 判断是否通过 - 缺失章节超过3个时才判断为失败
             passed = len(missing_chapters) <= 3 and len(structure_issues) == 0
@@ -372,7 +372,7 @@ class StructureChecker:
     
     def _check_critical_chapters(self, target_chapters: List[ChapterInfo]) -> List[str]:
         """
-        检查关键一级章节是否存在
+        检查关键章节是否存在（一到三级章节）
         
         Args:
             target_chapters: 目标文档章节
@@ -384,19 +384,19 @@ class StructureChecker:
             required_chapters = config.structure_check.required_critical_chapters
             missing_chapters = []
             
-            # 提取一级章节标题
-            first_level_titles = [
+            # 提取一到三级章节标题
+            critical_level_titles = [
                 chapter.title for chapter in target_chapters 
-                if chapter.level == 1
+                if chapter.level in [1, 2, 3]
             ]
             
-            logger.debug(f"检测到的一级章节: {first_level_titles}")
+            logger.debug(f"检测到的一到三级章节: {critical_level_titles}")
             
             for required_chapter in required_chapters:
                 found = False
                 
                 # 先进行简单的文本匹配
-                for title in first_level_titles:
+                for title in critical_level_titles:
                     if self._is_critical_chapter_match(required_chapter, title):
                         found = True
                         logger.debug(f"找到匹配的关键章节: {required_chapter} -> {title}")
@@ -404,7 +404,7 @@ class StructureChecker:
                 
                 # 如果简单匹配未找到，使用 LLM 进行语义检查
                 if not found:
-                    found = self._llm_critical_chapter_check(required_chapter, first_level_titles)
+                    found = self._llm_critical_chapter_check(required_chapter, critical_level_titles)
                     if found:
                         logger.debug(f"通过 LLM 语义匹配找到关键章节: {required_chapter}")
                 
@@ -424,11 +424,11 @@ class StructureChecker:
         clean_required = self._clean_title(required_chapter)
         return clean_required in clean_title
     
-    def _llm_critical_chapter_check(self, required_chapter: str, first_level_titles: List[str]) -> bool:
+    def _llm_critical_chapter_check(self, required_chapter: str, critical_level_titles: List[str]) -> bool:
         """使用 LLM 检查关键章节是否存在"""
         try:
             prompt = PromptBuilder.build_critical_chapter_check_prompt(
-                required_chapter, first_level_titles
+                required_chapter, critical_level_titles
             )
             response = self.llm_client.chat(prompt)
             result = "是" in response
