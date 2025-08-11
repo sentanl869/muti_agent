@@ -142,6 +142,18 @@ class DocumentCheckerPrompts:
     # 图像描述分析提示词（用于混合内容分析）
     IMAGE_DESCRIPTION_FOR_MIXED_CONTENT = """请描述图片{image_number}的内容，重点关注与文档规范相关的信息。"""
 
+    # 关键章节检查提示词
+    CRITICAL_CHAPTER_CHECK = """请判断以下一级章节列表中是否包含与"{required_chapter}"相关的章节：
+
+一级章节列表：
+{chapter_list}
+
+判断标准：
+- 章节标题中包含"{required_chapter}"关键词
+- 章节标题表达的概念属于{required_chapter}范畴
+
+请只回答"是"或"否"。"""
+
 
 class PromptBuilder:
     """提示词构建器，用于动态构建提示词"""
@@ -192,3 +204,13 @@ class PromptBuilder:
             combined_content += "图像内容:\n" + "\n\n".join(image_descriptions)
         
         return f"{base_prompt}\n\n内容:\n{combined_content}"
+    
+    @staticmethod
+    def build_critical_chapter_check_prompt(required_chapter: str, chapter_titles: list) -> str:
+        """构建关键章节检查提示词"""
+        chapter_list = "\n".join([f"- {title}" for title in chapter_titles])
+        
+        return DocumentCheckerPrompts.CRITICAL_CHAPTER_CHECK.format(
+            required_chapter=required_chapter,
+            chapter_list=chapter_list
+        )

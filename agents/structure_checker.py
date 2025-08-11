@@ -80,8 +80,15 @@ class StructureChecker:
             # 计算相似度
             similarity_score = self._calculate_similarity(template_structure, target_structure)
             
-            # 判断是否通过
-            passed = len(missing_chapters) == 0 and len(structure_issues) == 0
+            # 新增：关键章节检查
+            missing_critical_chapters = self._check_critical_chapters(target_chapters)
+            
+            # 将缺失的关键章节添加到结构问题中
+            for missing_critical in missing_critical_chapters:
+                structure_issues.append(f"缺失关键一级章节: {missing_critical}")
+            
+            # 判断是否通过 - 缺失章节超过3个时才判断为失败
+            passed = len(missing_chapters) <= 3 and len(structure_issues) == 0
             
             result = StructureCheckResult(
                 passed=passed,
@@ -95,6 +102,11 @@ class StructureChecker:
             
             logger.info(f"章节完整性检查完成: {'通过' if passed else '失败'}")
             logger.info(f"缺失章节: {len(missing_chapters)}, 额外章节: {len(extra_chapters)}")
+            if len(missing_chapters) > 0:
+                logger.info(f"缺失章节阈值检查: {len(missing_chapters)}/3 {'(通过)' if len(missing_chapters) <= 3 else '(失败)'}")
+            logger.info(f"结构问题: {len(structure_issues)}")
+            if missing_critical_chapters:
+                logger.warning(f"缺失关键章节: {missing_critical_chapters}")
             logger.info(f"结构相似度: {similarity_score:.2%}")
             
             return result
@@ -357,3 +369,71 @@ class StructureChecker:
             'max_depth': max(level_counts.keys()) if level_counts else 0,
             'total_chapters': sum(level_counts.values())
         }
+    
+    def _check_critical_chapters(self, target_chapters: List[ChapterInfo]) -> List[str]:
+        """
+        检查关键一级章节是否存在
+        
+        Args:
+            target_chapters: 目标文档章节
+            
+        Returns:
+            缺失的关键章节列表
+        """
+        try:
+            required_chapters = config.structure_check.required_critical_chapters
+            missing_chapters = []
+            
+            # 提取一级章节标题
+            first_level_titles = [
+                chapter.title for chapter in target_chapters 
+                if chapter.level == 1
+            ]
+            
+            logger.debug(f"检测到的一级章节: {first_level_titles}")
+            
+            for required_chapter in required_chapters:
+                found = False
+                
+                # 先进行简单的文本匹配
+                for title in first_level_titles:
+                    if self._is_critical_chapter_match(required_chapter, title):
+                        found = True
+                        logger.debug(f"找到匹配的关键章节: {required_chapter} -> {title}")
+                        break
+                
+                # 如果简单匹配未找到，使用 LLM 进行语义检查
+                if not found:
+                    found = self._llm_critical_chapter_check(required_chapter, first_level_titles)
+                    if found:
+                        logger.debug(f"通过 LLM 语义匹配找到关键章节: {required_chapter}")
+                
+                if not found:
+                    missing_chapters.append(required_chapter)
+                    logger.info(f"缺失关键章节: {required_chapter}")
+            
+            return missing_chapters
+            
+        except Exception as e:
+            logger.error(f"关键章节检查失败: {e}")
+            return []  # 出错时返回空列表，不影响主流程
+    
+    def _is_critical_chapter_match(self, required_chapter: str, chapter_title: str) -> bool:
+        """简单的章节匹配检查"""
+        clean_title = self._clean_title(chapter_title)
+        clean_required = self._clean_title(required_chapter)
+        return clean_required in clean_title
+    
+    def _llm_critical_chapter_check(self, required_chapter: str, first_level_titles: List[str]) -> bool:
+        """使用 LLM 检查关键章节是否存在"""
+        try:
+            prompt = PromptBuilder.build_critical_chapter_check_prompt(
+                required_chapter, first_level_titles
+            )
+            response = self.llm_client.chat(prompt)
+            result = "是" in response
+            logger.debug(f"LLM 关键章节检查 - {required_chapter}: {result}")
+            return result
+        except Exception as e:
+            logger.warning(f"LLM 关键章节检查失败: {e}")
+            return False

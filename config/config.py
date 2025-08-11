@@ -71,6 +71,20 @@ class LoggingConfig:
 
 
 @dataclass
+class StructureCheckConfig:
+    """结构检查配置"""
+    # 必须包含的一级章节
+    required_critical_chapters: List[str] = None
+    
+    def __post_init__(self):
+        if self.required_critical_chapters is None:
+            self.required_critical_chapters = [
+                "可靠性",
+                "安全性"
+            ]
+
+
+@dataclass
 class CheckConfig:
     """检查功能配置"""
     # 默认配置：结构检查开启，内容检查关闭
@@ -120,6 +134,9 @@ class Config:
             enable_content_check=self._get_bool_env('ENABLE_CONTENT_CHECK', False),
             enable_image_check=self._get_bool_env('ENABLE_IMAGE_CHECK', False)
         )
+        
+        # 结构检查配置
+        self.structure_check = StructureCheckConfig()
         
         # 创建输出目录
         os.makedirs(self.report.output_dir, exist_ok=True)
