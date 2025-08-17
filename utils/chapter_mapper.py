@@ -26,10 +26,10 @@ class MappingConfig:
     exact_match_threshold: float = 0.95    # 精确匹配阈值
     semantic_match_threshold: float = 0.7  # 语义匹配阈值
     position_weight: float = 0.2           # 位置权重
-    title_weight: float = 0.4              # 标题权重
-    content_weight: float = 0.3            # 内容权重
+    title_weight: float = 0.5              # 标题权重
+    content_weight: float = 0.2            # 内容权重
     structure_weight: float = 0.1          # 结构权重
-    max_batch_size: int = 10               # 批量处理大小
+    max_batch_size: int = 30               # 批量处理大小
     enable_context_aware: bool = True      # 启用上下文感知
     enable_renumbering_detection: bool = True  # 启用重编号检测
 
@@ -178,13 +178,13 @@ class ChapterMapper:
                     # 结构相似度（层级匹配）
                     scores.structure_similarity = 1.0 if template_ch.level == target_ch.level else 0.0
                     
-                    # 语义相似度（从批量结果中获取）
+                    # 语义相似度（从批量结果中获取，如果可用的话）
+                    semantic_similarity = 0.0
                     if i < len(semantic_matrix) and j < len(semantic_matrix[i]):
-                        # 这里暂时使用标题相似度作为语义相似度的基础
-                        # 实际的语义相似度会在批量处理中计算
-                        pass
+                        semantic_similarity = semantic_matrix[i][j]
                     
-                    # 计算综合相似度
+                    # 计算综合相似度：结合语义相似度和其他相似度
+                    # 如果有语义相似度，则使用加权平均；否则仅使用其他相似度
                     weights = {
                         'title': self.config.title_weight,
                         'content': self.config.content_weight,
@@ -192,12 +192,19 @@ class ChapterMapper:
                         'structure': self.config.structure_weight
                     }
                     
-                    scores.overall_similarity = (
+                    base_similarity = (
                         scores.title_similarity * weights['title'] +
                         scores.content_similarity * weights['content'] +
                         scores.position_similarity * weights['position'] +
                         scores.structure_similarity * weights['structure']
                     )
+                    
+                    # 如果有语义相似度，则与基础相似度进行加权融合
+                    if semantic_similarity > 0:
+                        # 语义相似度权重为0.3，基础相似度权重为0.7
+                        scores.overall_similarity = base_similarity * 0.7 + semantic_similarity * 0.3
+                    else:
+                        scores.overall_similarity = base_similarity
             
             logger.info("相似度矩阵计算完成")
             return matrix

@@ -42,34 +42,42 @@ class SemanticMatcher:
         try:
             template_titles = request.template_titles
             target_titles = request.target_titles
-            max_batch_size = request.max_batch_size
             
-            # 初始化结果矩阵
-            similarity_matrix = [[0.0 for _ in target_titles] for _ in template_titles]
-            reasoning_matrix = [["" for _ in target_titles] for _ in template_titles]
+            # 计算总的章节对数量
+            total_pairs = len(template_titles) * len(target_titles)
             
-            # 分批处理以避免单次请求过大
-            api_calls = 0
-            
-            for i in range(0, len(template_titles), max_batch_size):
-                batch_template = template_titles[i:i + max_batch_size]
+            # 智能批量策略：根据章节数量决定处理方式
+            if total_pairs <= 150:  # 小规模：一次性处理
+                api_calls = 1
+                batch_result = self._process_batch(
+                    template_titles, target_titles, request.context_info
+                )
+                similarity_matrix = batch_result['similarities']
+                reasoning_matrix = batch_result['reasoning']
                 
-                for j in range(0, len(target_titles), max_batch_size):
-                    batch_target = target_titles[j:j + max_batch_size]
+            elif total_pairs <= 400:  # 中等规模：按模板章节分批
+                api_calls = 0
+                similarity_matrix = []
+                reasoning_matrix = []
+                
+                # 按模板章节分批，每批处理所有目标章节
+                batch_size = min(10, len(template_titles))
+                for i in range(0, len(template_titles), batch_size):
+                    batch_template = template_titles[i:i + batch_size]
                     
-                    # 执行批量匹配
                     batch_result = self._process_batch(
-                        batch_template, batch_target, request.context_info
+                        batch_template, target_titles, request.context_info
                     )
                     
-                    # 填充结果矩阵
-                    for bi, template_idx in enumerate(range(i, min(i + max_batch_size, len(template_titles)))):
-                        for bj, target_idx in enumerate(range(j, min(j + max_batch_size, len(target_titles)))):
-                            if bi < len(batch_result['similarities']) and bj < len(batch_result['similarities'][bi]):
-                                similarity_matrix[template_idx][target_idx] = batch_result['similarities'][bi][bj]
-                                reasoning_matrix[template_idx][target_idx] = batch_result['reasoning'][bi][bj]
-                    
+                    similarity_matrix.extend(batch_result['similarities'])
+                    reasoning_matrix.extend(batch_result['reasoning'])
                     api_calls += 1
+                    
+            else:  # 大规模：使用文本相似度替代语义匹配
+                logger.info(f"章节数量过多({total_pairs}对)，使用文本相似度替代语义匹配")
+                api_calls = 0
+                similarity_matrix = self._calculate_text_similarity_matrix(template_titles, target_titles)
+                reasoning_matrix = [["文本相似度计算" for _ in target_titles] for _ in template_titles]
             
             self.api_call_count += api_calls
             processing_time = time.time() - start_time
@@ -452,6 +460,37 @@ class SemanticMatcher:
             'total_api_calls': self.api_call_count,
             'cache_size': len(self.cache)
         }
+    
+    def _calculate_text_similarity_matrix(self, template_titles: List[str], 
+                                        target_titles: List[str]) -> List[List[float]]:
+        """
+        计算文本相似度矩阵（用于大规模章节匹配时替代语义匹配）
+        
+        Args:
+            template_titles: 模板章节标题列表
+            target_titles: 目标章节标题列表
+            
+        Returns:
+            相似度矩阵
+        """
+        try:
+            similarity_matrix = []
+            
+            for template_title in template_titles:
+                row = []
+                for target_title in target_titles:
+                    # 使用标题相似度计算
+                    similarity = self.calculate_title_similarity(template_title, target_title)
+                    row.append(similarity)
+                similarity_matrix.append(row)
+            
+            logger.info(f"文本相似度矩阵计算完成: {len(template_titles)}x{len(target_titles)}")
+            return similarity_matrix
+            
+        except Exception as e:
+            logger.error(f"文本相似度矩阵计算失败: {e}")
+            # 返回零矩阵
+            return [[0.0 for _ in target_titles] for _ in template_titles]
     
     def clear_cache(self):
         """清空缓存"""

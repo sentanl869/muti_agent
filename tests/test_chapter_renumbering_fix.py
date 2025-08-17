@@ -10,7 +10,7 @@ import logging
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 设置日志级别
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 from agents.structure_checker import StructureChecker
 from utils.html_parser import ChapterInfo
@@ -22,19 +22,19 @@ def create_renumbering_test_data():
     
     # 模板文档章节（原始编号）
     template_chapters = [
-        ChapterInfo(title="4.6.1.1 安全兜底机制合入", level=4, content="安全兜底机制的详细说明", images=[], position=0),
-        ChapterInfo(title="4.6.1.2 模块1安全设计", level=4, content="模块1的安全设计内容", images=[], position=1),
-        ChapterInfo(title="4.6.1.3 模块2安全设计", level=4, content="模块2的安全设计内容", images=[], position=2),
-        ChapterInfo(title="4.6.1.4 数据加密机制", level=4, content="数据加密的实现方案", images=[], position=3),
-        ChapterInfo(title="4.6.1.5 访问控制策略", level=4, content="访问控制的详细策略", images=[], position=4),
-    ]
-    
-    # 目标文档章节（重编号后，缺失了4.6.1.1）
-    target_chapters = [
         ChapterInfo(title="4.6.1.1 模块1安全设计", level=4, content="模块1的安全设计内容", images=[], position=0),
         ChapterInfo(title="4.6.1.2 模块2安全设计", level=4, content="模块2的安全设计内容", images=[], position=1),
         ChapterInfo(title="4.6.1.3 数据加密机制", level=4, content="数据加密的实现方案", images=[], position=2),
         ChapterInfo(title="4.6.1.4 访问控制策略", level=4, content="访问控制的详细策略", images=[], position=3),
+        ChapterInfo(title="4.6.1.5 安全兜底机制合入", level=4, content="安全兜底机制的详细说明", images=[], position=4),
+    ]
+    
+    # 目标文档章节（重编号后，删除了第一个章节，后续章节编号前移）
+    target_chapters = [
+        ChapterInfo(title="4.6.1.1 模块2安全设计", level=4, content="模块2的安全设计内容", images=[], position=0),
+        ChapterInfo(title="4.6.1.2 数据加密机制", level=4, content="数据加密的实现方案", images=[], position=1),
+        ChapterInfo(title="4.6.1.3 访问控制策略", level=4, content="访问控制的详细策略", images=[], position=2),
+        ChapterInfo(title="4.6.1.4 安全兜底机制合入", level=4, content="安全兜底机制的详细说明", images=[], position=3),
     ]
     
     return template_chapters, target_chapters
