@@ -83,18 +83,21 @@ class ChapterMapper:
                 template_chapters, target_chapters, similarity_matrix, context
             )
             
-            # 5. 分析映射结果
+            # 5. 使用上下文信息增强映射结果
+            enhanced_mappings = self.enhance_mapping_with_context(mappings, context)
+            
+            # 6. 分析映射结果
             unmapped_template, unmapped_target = self._analyze_unmapped_chapters(
-                template_chapters, target_chapters, mappings
+                template_chapters, target_chapters, enhanced_mappings
             )
             
-            # 6. 计算整体置信度
-            overall_confidence = self._calculate_overall_confidence(mappings)
+            # 7. 计算整体置信度
+            overall_confidence = self._calculate_overall_confidence(enhanced_mappings)
             
-            # 7. 生成映射摘要
-            mapping_summary = self._generate_mapping_summary(mappings)
+            # 8. 生成映射摘要
+            mapping_summary = self._generate_mapping_summary(enhanced_mappings)
             
-            # 8. 性能指标
+            # 9. 性能指标
             processing_time = time.time() - start_time
             performance_metrics = {
                 'processing_time': processing_time,
@@ -103,7 +106,7 @@ class ChapterMapper:
             }
             
             result = MappingResult(
-                mappings=mappings,
+                mappings=enhanced_mappings,
                 unmapped_template=unmapped_template,
                 unmapped_target=unmapped_target,
                 renumbering_patterns=renumbering_patterns,
@@ -113,7 +116,7 @@ class ChapterMapper:
             )
             
             logger.info(f"全局映射完成: 耗时{processing_time:.2f}s, "
-                       f"成功映射{len(mappings)}个, 整体置信度{overall_confidence:.2%}")
+                       f"成功映射{len(enhanced_mappings)}个, 整体置信度{overall_confidence:.2%}")
             
             return result
             

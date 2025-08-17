@@ -47,7 +47,7 @@ class SemanticMatcher:
             total_pairs = len(template_titles) * len(target_titles)
             
             # 智能批量策略：根据章节数量决定处理方式
-            if total_pairs <= 150:  # 小规模：一次性处理
+            if total_pairs <= 2500:  # 小规模：一次性处理
                 api_calls = 1
                 batch_result = self._process_batch(
                     template_titles, target_titles, request.context_info
@@ -55,7 +55,7 @@ class SemanticMatcher:
                 similarity_matrix = batch_result['similarities']
                 reasoning_matrix = batch_result['reasoning']
                 
-            elif total_pairs <= 400:  # 中等规模：按模板章节分批
+            elif total_pairs <= 10000:  # 中等规模：按模板章节分批
                 api_calls = 0
                 similarity_matrix = []
                 reasoning_matrix = []
