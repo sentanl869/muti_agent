@@ -11,6 +11,8 @@ from utils.html_parser import ChapterInfo
 from utils.llm_client import LLMClient
 from config.config import config
 from prompts import PromptBuilder
+from utils.chapter_mapper import ChapterMapper, MappingConfig
+from utils.chapter_mapping_types import MatchType, MappingResult
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,8 @@ class StructureChecker:
     
     def __init__(self):
         self.llm_client = LLMClient()
+        self.chapter_mapper = ChapterMapper()
+        self.enable_smart_mapping = True  # 启用智能映射
     
     def check_structure_completeness(self, template_chapters: List[ChapterInfo], 
                                    target_chapters: List[ChapterInfo]) -> StructureCheckResult:
@@ -72,15 +76,21 @@ class StructureChecker:
             template_structure = self._build_structure_tree(template_chapters)
             target_structure = self._build_structure_tree(target_chapters)
             
-            # 比较结构
-            missing_chapters = self._find_missing_chapters(template_structure, target_structure)
-            extra_chapters = self._find_extra_chapters(template_structure, target_structure, target_chapters)
+            # 使用智能映射或传统方法进行比较
+            if self.enable_smart_mapping:
+                missing_chapters, extra_chapters, similarity_score = self._smart_structure_comparison(
+                    template_chapters, target_chapters
+                )
+            else:
+                # 传统方法
+                missing_chapters = self._find_missing_chapters(template_structure, target_structure)
+                extra_chapters = self._find_extra_chapters(template_structure, target_structure, target_chapters)
+                similarity_score = self._calculate_similarity(template_structure, target_structure)
+            
+            # 分析结构问题
             structure_issues = self._analyze_structure_issues(template_structure, target_structure)
             
-            # 计算相似度
-            similarity_score = self._calculate_similarity(template_structure, target_structure)
-            
-            # 新增：关键章节检查
+            # 关键章节检查
             missing_critical_chapters = self._check_critical_chapters(target_chapters)
             
             # 将缺失的关键章节添加到结构问题中
@@ -437,3 +447,183 @@ class StructureChecker:
         except Exception as e:
             logger.warning(f"LLM 关键章节检查失败: {e}")
             return False
+    
+    def _smart_structure_comparison(self, template_chapters: List[ChapterInfo], 
+                                  target_chapters: List[ChapterInfo]) -> Tuple[List[MissingChapter], List[ChapterInfo], float]:
+        """
+        使用智能映射进行结构比较
+        
+        Args:
+            template_chapters: 模板章节列表
+            target_chapters: 目标章节列表
+            
+        Returns:
+            (缺失章节列表, 额外章节列表, 相似度分数)
+        """
+        try:
+            logger.info("使用智能映射算法进行结构比较")
+            
+            # 创建全局章节映射
+            mapping_result = self.chapter_mapper.create_global_mapping(
+                template_chapters, target_chapters
+            )
+            
+            # 记录映射统计信息
+            stats = self.chapter_mapper.get_mapping_statistics(mapping_result)
+            logger.info(f"映射统计: 成功率{stats.get('mapping_rate', 0):.2%}, "
+                       f"API调用{stats.get('performance_metrics', {}).get('api_calls', 0)}次")
+            
+            # 记录重编号模式
+            if mapping_result.renumbering_patterns:
+                pattern_descriptions = [p.description for p in mapping_result.renumbering_patterns if p.description]
+                logger.info(f"检测到重编号模式: {'; '.join(pattern_descriptions)}")
+            
+            # 基于映射结果分析缺失和额外章节
+            missing_chapters = self._analyze_missing_chapters_from_mapping(mapping_result)
+            extra_chapters = self._analyze_extra_chapters_from_mapping(mapping_result)
+            
+            # 使用映射结果的整体置信度作为相似度
+            similarity_score = mapping_result.overall_confidence
+            
+            logger.info(f"智能映射完成: 缺失{len(missing_chapters)}个, 额外{len(extra_chapters)}个, "
+                       f"相似度{similarity_score:.2%}")
+            
+            return missing_chapters, extra_chapters, similarity_score
+            
+        except Exception as e:
+            logger.error(f"智能结构比较失败: {e}")
+            # 回退到传统方法
+            logger.info("回退到传统章节匹配方法")
+            template_structure = self._build_structure_tree(template_chapters)
+            target_structure = self._build_structure_tree(target_chapters)
+            
+            missing_chapters = self._find_missing_chapters(template_structure, target_structure)
+            extra_chapters = self._find_extra_chapters(template_structure, target_structure, target_chapters)
+            similarity_score = self._calculate_similarity(template_structure, target_structure)
+            
+            return missing_chapters, extra_chapters, similarity_score
+    
+    def _analyze_missing_chapters_from_mapping(self, mapping_result: MappingResult) -> List[MissingChapter]:
+        """基于映射结果分析缺失章节"""
+        missing_chapters = []
+        
+        try:
+            # 只检查映射结果中未找到匹配的章节
+            for mapping in mapping_result.mappings:
+                # 只有未找到匹配的章节才被认为是缺失的
+                if mapping.match_type == MatchType.NONE or mapping.target_chapter is None:
+                    template_ch = mapping.template_chapter
+                    
+                    missing_chapter = MissingChapter(
+                        title=template_ch.title,
+                        level=template_ch.level,
+                        expected_path=template_ch.parent_path,
+                        parent_title="",  # 在智能映射中暂不使用父标题
+                        position=template_ch.position
+                    )
+                    missing_chapters.append(missing_chapter)
+                    
+                    logger.debug(f"识别缺失章节: {template_ch.title} (置信度: {mapping.confidence:.2f})")
+            
+            # 注意：不再单独处理 unmapped_template，因为这些章节已经在 mappings 中以 NONE 类型存在
+            # 这避免了重复计算缺失章节
+            
+        except Exception as e:
+            logger.warning(f"分析缺失章节失败: {e}")
+        
+        return missing_chapters
+    
+    def _analyze_extra_chapters_from_mapping(self, mapping_result: MappingResult) -> List[ChapterInfo]:
+        """基于映射结果分析额外章节"""
+        extra_chapters = []
+        
+        try:
+            # 直接使用未映射的目标章节作为额外章节
+            extra_chapters = mapping_result.unmapped_target.copy()
+            
+            for chapter in extra_chapters:
+                logger.debug(f"识别额外章节: {chapter.title}")
+            
+        except Exception as e:
+            logger.warning(f"分析额外章节失败: {e}")
+        
+        return extra_chapters
+    
+    def get_mapping_details(self, template_chapters: List[ChapterInfo], 
+                          target_chapters: List[ChapterInfo]) -> Dict[str, Any]:
+        """
+        获取详细的映射信息（用于调试和分析）
+        
+        Args:
+            template_chapters: 模板章节列表
+            target_chapters: 目标章节列表
+            
+        Returns:
+            详细的映射信息
+        """
+        try:
+            if not self.enable_smart_mapping:
+                return {"error": "智能映射未启用"}
+            
+            # 创建映射
+            mapping_result = self.chapter_mapper.create_global_mapping(
+                template_chapters, target_chapters
+            )
+            
+            # 构建详细信息
+            details = {
+                "mapping_summary": mapping_result.mapping_summary,
+                "overall_confidence": mapping_result.overall_confidence,
+                "renumbering_patterns": [],
+                "mappings": [],
+                "unmapped_template": [ch.title for ch in mapping_result.unmapped_template],
+                "unmapped_target": [ch.title for ch in mapping_result.unmapped_target],
+                "performance_metrics": mapping_result.performance_metrics
+            }
+            
+            # 重编号模式详情
+            for pattern in mapping_result.renumbering_patterns:
+                pattern_info = {
+                    "type": pattern.pattern_type.value,
+                    "confidence": pattern.confidence,
+                    "description": pattern.description,
+                    "affected_levels": pattern.affected_levels,
+                    "examples": pattern.examples
+                }
+                details["renumbering_patterns"].append(pattern_info)
+            
+            # 映射详情
+            for mapping in mapping_result.mappings:
+                mapping_info = {
+                    "template_title": mapping.template_chapter.title,
+                    "target_title": mapping.target_chapter.title if mapping.target_chapter else None,
+                    "match_type": mapping.match_type.value,
+                    "confidence": mapping.confidence,
+                    "confidence_level": mapping.confidence_level.value,
+                    "similarity_scores": {
+                        "title": mapping.similarity_scores.title_similarity,
+                        "content": mapping.similarity_scores.content_similarity,
+                        "position": mapping.similarity_scores.position_similarity,
+                        "structure": mapping.similarity_scores.structure_similarity,
+                        "overall": mapping.similarity_scores.overall_similarity
+                    },
+                    "llm_reasoning": mapping.llm_reasoning,
+                    "mapping_notes": mapping.mapping_notes
+                }
+                details["mappings"].append(mapping_info)
+            
+            return details
+            
+        except Exception as e:
+            logger.error(f"获取映射详情失败: {e}")
+            return {"error": str(e)}
+    
+    def set_smart_mapping_enabled(self, enabled: bool):
+        """设置是否启用智能映射"""
+        self.enable_smart_mapping = enabled
+        logger.info(f"智能映射已{'启用' if enabled else '禁用'}")
+    
+    def configure_mapping(self, config: MappingConfig):
+        """配置映射参数"""
+        self.chapter_mapper = ChapterMapper(config)
+        logger.info("章节映射器配置已更新")

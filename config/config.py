@@ -114,13 +114,13 @@ class Config:
         self.llm = LLMConfig(
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.siliconflow.cn/v1"),
             api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-            model=os.getenv("DEEPSEEK_MODEL", "Pro/deepseek-ai/DeepSeek-V3")
+            model=os.getenv("DEEPSEEK_MODEL", "Pro/moonshotai/Kimi-K2-Instruct")
         )
         
         self.vision = VisionConfig(
             base_url=os.getenv("VISION_BASE_URL", "https://api.siliconflow.cn/v1"),
             api_key=os.getenv("VISION_API_KEY", ""),
-            model=os.getenv("VISION_MODEL", "Qwen/Qwen2.5-VL-72B-Instruct")
+            model=os.getenv("VISION_MODEL", "zai-org/GLM-4.5V")
         )
         
         self.document = DocumentConfig()

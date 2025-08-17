@@ -154,6 +154,80 @@ class DocumentCheckerPrompts:
 
 请只回答"是"或"否"。"""
 
+    # 批量语义匹配提示词
+    BATCH_SEMANTIC_MATCHING = """请分析以下模板章节标题和目标章节标题之间的语义相似度。
+
+## 模板章节标题：
+{template_titles}
+
+## 目标章节标题：
+{target_titles}
+
+{context_info}
+
+## 匹配规则：
+
+### 1. 精确匹配 (1.0)
+- 标题完全相同或仅有微小格式差异
+
+### 2. 高相似度匹配 (0.8-0.9)
+- 表达相同概念，用词略有不同
+- 样本章节匹配（如"模块1" ↔ "用户认证模块"）
+
+### 3. 中等相似度匹配 (0.5-0.7)
+- 相关概念，但有一定差异
+- 同类型章节，具体内容不同
+
+### 4. 低相似度匹配 (0.1-0.4)
+- 有一定关联，但差异较大
+
+### 5. 无关匹配 (0.0)
+- 完全不相关的章节
+
+## 输出格式：
+请按以下格式输出相似度矩阵：
+
+```
+SIMILARITY_MATRIX:
+T1-G1: 0.9 | 原因：标题语义相同
+T1-G2: 0.2 | 原因：概念不相关
+...
+T2-G1: 0.1 | 原因：主题不同
+T2-G2: 0.8 | 原因：表达相同功能
+...
+```
+
+请开始分析："""
+
+    # 上下文感知章节匹配提示词
+    CONTEXT_AWARE_MATCHING = """请根据上下文信息分析模板章节与候选目标章节的匹配关系。
+
+## 模板章节：
+标题: {template_title}
+层级: H{template_level}
+位置: 第{template_position}个
+
+## 候选目标章节：
+{candidate_chapters}
+
+## 上下文信息：
+{context_info}
+
+## 匹配要求：
+1. 考虑章节的层级结构关系
+2. 参考已知的重编号模式
+3. 结合同级章节的映射情况
+4. 优先匹配语义相同的章节
+
+## 输出格式：
+请为每个候选章节给出匹配分数和原因：
+
+候选1: [分数] | 原因：[详细说明]
+候选2: [分数] | 原因：[详细说明]
+...
+
+分数范围：0.0-1.0，1.0表示完全匹配。"""
+
 
 class PromptBuilder:
     """提示词构建器，用于动态构建提示词"""
@@ -213,4 +287,47 @@ class PromptBuilder:
         return DocumentCheckerPrompts.CRITICAL_CHAPTER_CHECK.format(
             required_chapter=required_chapter,
             chapter_list=chapter_list
+        )
+    
+    @staticmethod
+    def build_batch_semantic_matching_prompt(template_titles: list, target_titles: list, 
+                                           context_info: str = "") -> str:
+        """构建批量语义匹配提示词"""
+        # 格式化模板标题
+        template_section = ""
+        for i, title in enumerate(template_titles):
+            template_section += f"T{i+1}: {title}\n"
+        
+        # 格式化目标标题
+        target_section = ""
+        for i, title in enumerate(target_titles):
+            target_section += f"G{i+1}: {title}\n"
+        
+        # 格式化上下文信息
+        context_section = ""
+        if context_info:
+            context_section = f"\n## 上下文信息：\n{context_info}\n"
+        
+        return DocumentCheckerPrompts.BATCH_SEMANTIC_MATCHING.format(
+            template_titles=template_section,
+            target_titles=target_section,
+            context_info=context_section
+        )
+    
+    @staticmethod
+    def build_context_aware_matching_prompt(template_title: str, template_level: int, 
+                                          template_position: int, candidate_chapters: list,
+                                          context_info: str = "") -> str:
+        """构建上下文感知匹配提示词"""
+        # 格式化候选章节
+        candidates_section = ""
+        for i, chapter in enumerate(candidate_chapters):
+            candidates_section += f"候选{i+1}: {chapter.title} (H{chapter.level}, 位置{chapter.position})\n"
+        
+        return DocumentCheckerPrompts.CONTEXT_AWARE_MATCHING.format(
+            template_title=template_title,
+            template_level=template_level,
+            template_position=template_position + 1,  # 转换为1基索引
+            candidate_chapters=candidates_section,
+            context_info=context_info
         )
