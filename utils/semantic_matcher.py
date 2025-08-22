@@ -15,6 +15,7 @@ from utils.chapter_mapping_types import (
     SimilarityScores, MatchingContext
 )
 from prompts import PromptBuilder
+from config.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class SemanticMatcher:
             total_pairs = len(template_titles) * len(target_titles)
             
             # 智能批量策略：根据章节数量决定处理方式
-            if total_pairs <= 2500:  # 小规模：一次性处理
+            if total_pairs <= config.semantic_matcher.small_batch_threshold:  # 小规模：一次性处理
                 api_calls = 1
                 batch_result = self._process_batch(
                     template_titles, target_titles, request.context_info
@@ -55,13 +56,13 @@ class SemanticMatcher:
                 similarity_matrix = batch_result['similarities']
                 reasoning_matrix = batch_result['reasoning']
                 
-            elif total_pairs <= 10000:  # 中等规模：按模板章节分批
+            elif total_pairs <= config.semantic_matcher.medium_batch_threshold:  # 中等规模：按模板章节分批
                 api_calls = 0
                 similarity_matrix = []
                 reasoning_matrix = []
                 
                 # 按模板章节分批，每批处理所有目标章节
-                batch_size = min(10, len(template_titles))
+                batch_size = min(config.semantic_matcher.default_batch_size, len(template_titles))
                 for i in range(0, len(template_titles), batch_size):
                     batch_template = template_titles[i:i + batch_size]
                     
@@ -267,7 +268,7 @@ class SemanticMatcher:
         # 添加同级章节信息
         if context.sibling_mappings:
             sibling_info = []
-            for mapping in context.sibling_mappings[-3:]:  # 最近的3个同级映射
+            for mapping in context.sibling_mappings[-config.semantic_matcher.context_sibling_count:]:  # 最近的N个同级映射
                 if mapping.target_chapter:
                     sibling_info.append(f"{mapping.template_chapter.title} → {mapping.target_chapter.title}")
             if sibling_info:
@@ -364,7 +365,7 @@ class SemanticMatcher:
             
             # 过滤短词和停用词
             stop_words = {'的', '是', '在', '有', '和', '与', '或', '但', '而', '了', '着', '过'}
-            keywords = [word for word in words if len(word) > 1 and word not in stop_words]
+            keywords = [word for word in words if len(word) >= config.semantic_matcher.keyword_min_length and word not in stop_words]
             
             return keywords
             
@@ -394,7 +395,7 @@ class SemanticMatcher:
             
             # 包含关系
             if clean_title1 in clean_title2 or clean_title2 in clean_title1:
-                return 0.8
+                return config.semantic_matcher.title_inclusion_similarity
             
             # 关键词相似度
             words1 = set(self._extract_keywords(clean_title1))

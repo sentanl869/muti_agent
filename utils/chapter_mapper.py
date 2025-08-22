@@ -15,6 +15,7 @@ from utils.chapter_mapping_types import (
 )
 from utils.semantic_matcher import SemanticMatcher
 from utils.renumbering_detector import RenumberingDetector
+from config.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,9 @@ class MappingConfig:
 class ChapterMapper:
     """章节映射器"""
     
-    def __init__(self, config: MappingConfig = None):
-        self.config = config or MappingConfig()
+    def __init__(self, mapping_config: MappingConfig = None):
+        # 优先使用传入的配置，其次使用全局配置，最后使用默认配置
+        self.config = mapping_config or config.mapping
         self.semantic_matcher = SemanticMatcher()
         self.renumbering_detector = RenumberingDetector()
         

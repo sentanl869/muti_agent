@@ -7,7 +7,6 @@ import os
 from typing import Dict, Any, List
 from dataclasses import dataclass
 
-
 @dataclass
 class LLMConfig:
     """LLM 配置"""
@@ -21,7 +20,6 @@ class LLMConfig:
     request_interval: float = 1.0  # 请求间隔（秒），默认1秒
     stream: bool = True  # 是否启用流式输出并自动聚合
 
-
 @dataclass
 class VisionConfig:
     """视觉模型配置"""
@@ -32,7 +30,10 @@ class VisionConfig:
     image_quality: str = "high"
     description_detail: str = "detailed"
     request_interval: float = 1.0  # 请求间隔（秒），默认1秒
-
+    # 新增图像分析配置
+    max_analysis_tokens: int = 1000  # 图像分析最大token数
+    analysis_timeout: int = 60  # 图像分析超时时间
+    image_compression_quality: int = 85  # 图像压缩质量
 
 @dataclass
 class RetryConfig:
@@ -43,7 +44,6 @@ class RetryConfig:
     backoff_factor: float = 2.0
     enable_jitter: bool = True
 
-
 @dataclass
 class DocumentConfig:
     """文档获取配置"""
@@ -51,7 +51,8 @@ class DocumentConfig:
     timeout: int = 30
     max_retries: int = 3  # 保留原有配置以兼容性，但会被 RetryConfig 覆盖
     chunk_size: int = 32000  # 32K 字符，确保不超过模型上下文限制
-
+    # 新增文档获取配置
+    min_content_length: int = 100  # 最小内容长度验证
 
 @dataclass
 class ReportConfig:
@@ -59,7 +60,6 @@ class ReportConfig:
     template_file: str = "templates/report.html"
     output_dir: str = "reports"
     include_images: bool = True
-
 
 @dataclass
 class LoggingConfig:
@@ -69,12 +69,15 @@ class LoggingConfig:
     max_file_size: int = 10 * 1024 * 1024  # 10MB
     backup_count: int = 5
 
-
 @dataclass
 class StructureCheckConfig:
     """结构检查配置"""
     # 必须包含的一级章节
     required_critical_chapters: List[str] = None
+    # 新增结构检查配置
+    enable_smart_mapping: bool = True  # 启用智能映射
+    missing_chapters_threshold: int = 3  # 缺失章节阈值，超过此数量判定为失败
+    max_chapter_level: int = 4  # 最大章节层级
     
     def __post_init__(self):
         if self.required_critical_chapters is None:
@@ -83,6 +86,46 @@ class StructureCheckConfig:
                 "安全性"
             ]
 
+@dataclass
+class MappingConfig:
+    """章节映射配置"""
+    similarity_threshold: float = 0.5      # 相似度阈值
+    exact_match_threshold: float = 0.95    # 精确匹配阈值
+    semantic_match_threshold: float = 0.7  # 语义匹配阈值
+    position_weight: float = 0.2           # 位置权重
+    title_weight: float = 0.5              # 标题权重
+    content_weight: float = 0.2            # 内容权重
+    structure_weight: float = 0.1          # 结构权重
+    max_batch_size: int = 30               # 批量处理大小
+    enable_context_aware: bool = True      # 启用上下文感知
+    enable_renumbering_detection: bool = True  # 启用重编号检测
+
+@dataclass
+class SemanticMatcherConfig:
+    """语义匹配器配置"""
+    # 批量处理阈值配置
+    small_batch_threshold: int = 2500      # 小规模处理阈值（一次性处理）
+    medium_batch_threshold: int = 10000    # 中等规模处理阈值（分批处理）
+    default_batch_size: int = 10           # 默认批处理大小
+    
+    # 文本相似度配置
+    keyword_min_length: int = 2            # 最小关键词长度
+    title_inclusion_similarity: float = 0.8  # 标题包含关系相似度
+    
+    # 上下文感知配置
+    context_sibling_count: int = 3         # 同级章节上下文数量
+    
+    # 停用词配置
+    stop_words: List[str] = None
+    
+    def __post_init__(self):
+        if self.stop_words is None:
+            self.stop_words = ['的', '是', '在', '有', '和', '与', '或', '但', '而', '了', '着', '过']
+
+@dataclass
+class RateLimiterConfig:
+    """频率限制器配置"""
+    default_interval: float = 1.0         # 默认请求间隔
 
 @dataclass
 class CheckConfig:
@@ -105,7 +148,6 @@ class CheckConfig:
         """检查是否有任何检查功能启用"""
         return (self.enable_structure_check or 
                 self.enable_content_check)
-
 
 class Config:
     """主配置类"""
@@ -135,8 +177,11 @@ class Config:
             enable_image_check=self._get_bool_env('ENABLE_IMAGE_CHECK', False)
         )
         
-        # 结构检查配置
+        # 新增配置类实例
         self.structure_check = StructureCheckConfig()
+        self.mapping = MappingConfig()
+        self.semantic_matcher = SemanticMatcherConfig()
+        self.rate_limiter = RateLimiterConfig()
         
         # 创建输出目录
         os.makedirs(self.report.output_dir, exist_ok=True)
@@ -211,7 +256,6 @@ class Config:
                 "timeout": self.document.timeout
             }
         }
-
 
 # 全局配置实例
 config = Config()

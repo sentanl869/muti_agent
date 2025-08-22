@@ -191,7 +191,7 @@ class DocumentFetcher:
                 logger.warning(f"响应内容类型不是 HTML: {content_type}")
             
             # 检查内容长度
-            if len(response.text) < 100:
+            if len(response.text) < config.document.min_content_length:
                 raise ValueError("响应内容过短，可能不是有效的文档")
             
             logger.debug(f"请求成功: {response.status_code}, {len(response.text)} 字符")

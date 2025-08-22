@@ -55,7 +55,7 @@ class StructureChecker:
     def __init__(self):
         self.llm_client = LLMClient()
         self.chapter_mapper = ChapterMapper()
-        self.enable_smart_mapping = True  # 启用智能映射
+        self.enable_smart_mapping = config.structure_check.enable_smart_mapping  # 从配置获取
     
     def check_structure_completeness(self, template_chapters: List[ChapterInfo], 
                                    target_chapters: List[ChapterInfo]) -> StructureCheckResult:
@@ -97,8 +97,8 @@ class StructureChecker:
             for missing_critical in missing_critical_chapters:
                 structure_issues.append(f"缺失关键章节: {missing_critical}")
             
-            # 判断是否通过 - 缺失章节超过3个时才判断为失败
-            passed = len(missing_chapters) <= 3 and len(structure_issues) == 0
+            # 判断是否通过 - 使用配置的缺失章节阈值
+            passed = len(missing_chapters) <= config.structure_check.missing_chapters_threshold and len(structure_issues) == 0
             
             result = StructureCheckResult(
                 passed=passed,
@@ -113,7 +113,8 @@ class StructureChecker:
             logger.info(f"章节完整性检查完成: {'通过' if passed else '失败'}")
             logger.info(f"缺失章节: {len(missing_chapters)}, 额外章节: {len(extra_chapters)}")
             if len(missing_chapters) > 0:
-                logger.info(f"缺失章节阈值检查: {len(missing_chapters)}/3 {'(通过)' if len(missing_chapters) <= 3 else '(失败)'}")
+                threshold = config.structure_check.missing_chapters_threshold
+                logger.info(f"缺失章节阈值检查: {len(missing_chapters)}/{threshold} {'(通过)' if len(missing_chapters) <= threshold else '(失败)'}")
             logger.info(f"结构问题: {len(structure_issues)}")
             if missing_critical_chapters:
                 logger.warning(f"缺失关键章节: {missing_critical_chapters}")

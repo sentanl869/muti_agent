@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 class RateLimiter:
     """请求频率限制器"""
     
-    def __init__(self, interval: float = 1.0):
+    def __init__(self, interval: float = None):
         """
         初始化频率限制器
         
         Args:
-            interval: 请求间隔时间（秒）
+            interval: 请求间隔时间（秒），如果为None则使用配置中的默认值
         """
-        self.interval = interval
+        self.interval = interval if interval is not None else config.rate_limiter.default_interval
         self.last_request_time = 0.0
     
     def wait_if_needed(self):
@@ -137,9 +137,10 @@ class LLMClient:
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
                     content_parts.append(chunk.choices[0].delta.content)
-                if chunk.choices[0].delta.reasoning_content is not None:
-                    content_parts.append(chunk.choices[0].delta.reasoning_content)
-            
+                reasoning_content = getattr(chunk.choices[0].delta, 'reasoning_content', None)
+                if reasoning_content is not None:
+                    content_parts.append(reasoning_content)
+
             return ''.join(content_parts).strip()
             
         except Exception as e:
@@ -208,8 +209,8 @@ class VisionClient:
             response = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
-                max_tokens=1000,
-                timeout=60
+                max_tokens=self.config.max_analysis_tokens,
+                timeout=self.config.analysis_timeout
             )
             
             return response.choices[0].message.content.strip()
@@ -236,7 +237,7 @@ class VisionClient:
                 
                 # 转换为 base64
                 buffer = io.BytesIO()
-                img.save(buffer, format='JPEG', quality=85)
+                img.save(buffer, format='JPEG', quality=self.config.image_compression_quality)
                 image_bytes = buffer.getvalue()
                 
                 return base64.b64encode(image_bytes).decode('utf-8')
