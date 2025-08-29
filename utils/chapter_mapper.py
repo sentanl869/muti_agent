@@ -344,7 +344,7 @@ class ChapterMapper:
                 best_scores = SimilarityScores()
                 best_reasoning = ""
                 
-                # 在同层级的目标章节中寻找最佳匹配
+                # 首先在同层级的目标章节中寻找最佳匹配
                 for target_ch in level_target:
                     target_idx = all_target.index(target_ch)
                     
@@ -373,6 +373,33 @@ class ChapterMapper:
                             best_reasoning = f"相似度: {overall_score:.2f}, 类型: {match_type.value}"
                             logger.debug(f"找到更好的匹配: {template_ch.title} -> {target_ch.title}, 相似度: {overall_score:.2f}")
                 
+                # 如果同层级没有找到匹配，尝试跨层级匹配
+                if not best_target:
+                    cross_level_candidates = self._find_cross_level_candidates(
+                        template_ch, all_target, used_targets
+                    )
+                    
+                    for target_ch in cross_level_candidates:
+                        target_idx = all_target.index(target_ch)
+                        
+                        # 获取相似度分数
+                        if template_idx < len(similarity_matrix) and target_idx < len(similarity_matrix[template_idx]):
+                            scores = similarity_matrix[template_idx][target_idx]
+                            overall_score = scores.overall_similarity
+                            
+                            # 跨层级匹配需要更高的阈值
+                            cross_level_threshold = self.config.semantic_match_threshold
+                            
+                            if overall_score > best_score and overall_score >= cross_level_threshold:
+                                match_type = MatchType.SEMANTIC  # 跨层级匹配标记为语义匹配
+                                best_target = target_ch
+                                best_target_idx = target_idx
+                                best_score = overall_score
+                                best_match_type = match_type
+                                best_scores = scores
+                                best_reasoning = f"跨层级匹配 - 相似度: {overall_score:.2f}, 层级: H{template_ch.level}->H{target_ch.level}"
+                                logger.debug(f"找到跨层级匹配: {template_ch.title} -> {target_ch.title}, 相似度: {overall_score:.2f}")
+                
                 # 创建映射
                 if best_target:
                     mapping = create_mapping(
@@ -388,14 +415,66 @@ class ChapterMapper:
                     # 更新上下文
                     context.sibling_mappings.append(mapping)
                 else:
-                    # 未找到匹配，创建空映射
+                    # 未找到匹配，创建空映射（表示缺失章节）
                     empty_mapping = create_empty_mapping(template_ch)
                     mappings.append(empty_mapping)
-            
+                    logger.info(f"章节缺失: {template_ch.title} (层级: H{template_ch.level})")
+        
         except Exception as e:
             logger.warning(f"层级映射失败: {e}")
         
         return mappings
+    
+    def _find_cross_level_candidates(self, template_ch: ChapterInfo, 
+                                   all_target: List[ChapterInfo],
+                                   used_targets: Set[int]) -> List[ChapterInfo]:
+        """
+        在相邻层级中寻找候选匹配章节
+        
+        Args:
+            template_ch: 模板章节
+            all_target: 所有目标章节
+            used_targets: 已使用的目标章节索引
+            
+        Returns:
+            候选章节列表
+        """
+        candidates = []
+        target_level = template_ch.level
+        
+        try:
+            # 检查相邻层级（±1），优先考虑相近层级
+            level_priorities = [target_level - 1, target_level + 1]
+            
+            for priority_level in level_priorities:
+                for target_ch in all_target:
+                    target_idx = all_target.index(target_ch)
+                    
+                    # 跳过已使用的目标章节
+                    if target_idx in used_targets:
+                        continue
+                    
+                    # 匹配相邻层级
+                    if target_ch.level == priority_level:
+                        candidates.append(target_ch)
+                        logger.debug(f"添加跨层级候选: {template_ch.title} (H{target_level}) -> {target_ch.title} (H{priority_level})")
+            
+            # 如果相邻层级没有候选，扩大搜索范围到±2层级
+            if not candidates:
+                extended_levels = [target_level - 2, target_level + 2]
+                for extended_level in extended_levels:
+                    if extended_level > 0:  # 确保层级有效
+                        for target_ch in all_target:
+                            target_idx = all_target.index(target_ch)
+                            
+                            if target_idx not in used_targets and target_ch.level == extended_level:
+                                candidates.append(target_ch)
+                                logger.debug(f"添加扩展层级候选: {template_ch.title} (H{target_level}) -> {target_ch.title} (H{extended_level})")
+            
+        except Exception as e:
+            logger.warning(f"跨层级候选查找失败: {e}")
+        
+        return candidates
     
     def _determine_match_type(self, scores: SimilarityScores) -> MatchType:
         """根据相似度分数确定匹配类型"""
@@ -414,11 +493,12 @@ class ChapterMapper:
                                  target_chapters: List[ChapterInfo],
                                  mappings: List[ChapterMapping]) -> Tuple[List[ChapterInfo], List[ChapterInfo]]:
         """分析未映射的章节"""
-        # 找出未映射的模板章节
-        mapped_template_ids = [id(m.template_chapter) for m in mappings if m.target_chapter]
+        # 找出未映射的模板章节 - 修正：所有在mappings中的模板章节都应该被认为是已处理的
+        # 不管是否有target_chapter，只要存在映射关系就表示已经处理过了
+        mapped_template_ids = [id(m.template_chapter) for m in mappings]
         unmapped_template = [ch for ch in template_chapters if id(ch) not in mapped_template_ids]
         
-        # 找出未映射的目标章节
+        # 找出未映射的目标章节 - 只有实际被映射到的目标章节才算已使用
         mapped_target_ids = [id(m.target_chapter) for m in mappings if m.target_chapter]
         unmapped_target = [ch for ch in target_chapters if id(ch) not in mapped_target_ids]
         

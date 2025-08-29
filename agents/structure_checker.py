@@ -509,30 +509,109 @@ class StructureChecker:
         missing_chapters = []
         
         try:
-            # 只检查映射结果中未找到匹配的章节
-            for mapping in mapping_result.mappings:
-                # 只有未找到匹配的章节才被认为是缺失的
-                if mapping.match_type == MatchType.NONE or mapping.target_chapter is None:
-                    template_ch = mapping.template_chapter
+            # 添加调试信息
+            logger.debug(f"开始分析映射结果，共有 {len(mapping_result.mappings)} 个映射")
+            
+            # 分析映射结果中的所有映射关系
+            for i, mapping in enumerate(mapping_result.mappings):
+                template_ch = mapping.template_chapter
+                target_ch = mapping.target_chapter
+                match_type = mapping.match_type
+                
+                # 详细的调试日志
+                logger.debug(f"映射 {i+1}: {template_ch.title} -> {target_ch.title if target_ch else 'None'}, "
+                           f"类型: {match_type.value}, 置信度: {mapping.confidence:.2f}")
+                
+                # 检查未找到匹配的章节 - 修正：置信度为0的映射也应该被认为是缺失
+                if match_type == MatchType.NONE or target_ch is None or mapping.confidence == 0.0:
+                    # 构建更详细的父级路径信息
+                    parent_title = self._extract_parent_title(template_ch)
                     
                     missing_chapter = MissingChapter(
                         title=template_ch.title,
                         level=template_ch.level,
-                        expected_path=template_ch.parent_path,
-                        parent_title="",  # 在智能映射中暂不使用父标题
+                        expected_path=template_ch.parent_path if hasattr(template_ch, 'parent_path') else "",
+                        parent_title=parent_title,
                         position=template_ch.position
                     )
                     missing_chapters.append(missing_chapter)
                     
-                    logger.debug(f"识别缺失章节: {template_ch.title} (置信度: {mapping.confidence:.2f})")
+                    logger.info(f"识别缺失章节: {template_ch.title} (层级: H{template_ch.level}, 位置: {template_ch.position})")
+                else:
+                    logger.debug(f"非缺失章节: {template_ch.title} -> {target_ch.title}, 类型: {match_type.value}")
             
-            # 注意：不再单独处理 unmapped_template，因为这些章节已经在 mappings 中以 NONE 类型存在
-            # 这避免了重复计算缺失章节
+            # 额外检查 unmapped_template 以防遗漏
+            logger.debug(f"检查未映射的模板章节: {len(mapping_result.unmapped_template)} 个")
+            processed_titles = {ch.title for ch in missing_chapters}
+            
+            for unmapped_ch in mapping_result.unmapped_template:
+                logger.debug(f"未映射模板章节: {unmapped_ch.title}")
+                
+                if unmapped_ch.title not in processed_titles:
+                    parent_title = self._extract_parent_title(unmapped_ch)
+                    
+                    missing_chapter = MissingChapter(
+                        title=unmapped_ch.title,
+                        level=unmapped_ch.level,
+                        expected_path=unmapped_ch.parent_path if hasattr(unmapped_ch, 'parent_path') else "",
+                        parent_title=parent_title,
+                        position=unmapped_ch.position
+                    )
+                    missing_chapters.append(missing_chapter)
+                    
+                    logger.warning(f"额外发现缺失章节: {unmapped_ch.title} (可能的映射遗漏)")
             
         except Exception as e:
-            logger.warning(f"分析缺失章节失败: {e}")
+            logger.error(f"分析缺失章节失败: {e}", exc_info=True)
+        
+        # 按位置排序，确保缺失章节列表的逻辑顺序
+        missing_chapters.sort(key=lambda x: (x.level, x.position))
+        
+        logger.info(f"缺失章节分析完成: 共发现 {len(missing_chapters)} 个缺失章节")
+        if missing_chapters:
+            logger.info(f"缺失章节列表: {[ch.title for ch in missing_chapters]}")
         
         return missing_chapters
+    
+    def _extract_parent_title(self, chapter: ChapterInfo) -> str:
+        """
+        提取章节的父级标题
+        
+        Args:
+            chapter: 章节信息
+            
+        Returns:
+            父级章节标题，如果没有则返回空字符串
+        """
+        try:
+            # 如果章节有 parent_path 属性，从中提取父级标题
+            if hasattr(chapter, 'parent_path') and chapter.parent_path:
+                # parent_path 格式通常为 "父章节1 > 父章节2"
+                path_parts = chapter.parent_path.split(' > ')
+                if path_parts:
+                    return path_parts[-1].strip()  # 返回最直接的父级
+            
+            # 如果没有 parent_path，尝试从标题中推断
+            # 例如：从 "3.1 API接口" 推断父级可能是 "3. 对外接口"
+            title = chapter.title.strip()
+            
+            # 匹配编号格式：3.1, 3.2 等
+            import re
+            match = re.match(r'^(\d+)\.(\d+)', title)
+            if match:
+                parent_number = match.group(1)
+                # 构建可能的父级标题模式（这里只是示例，实际可能需要更复杂的逻辑）
+                return f"第{parent_number}级章节"
+            
+            # 如果章节层级大于1，表示可能有父级
+            if chapter.level > 1:
+                return f"H{chapter.level - 1}级章节"
+            
+            return ""
+            
+        except Exception as e:
+            logger.warning(f"提取父级标题失败: {e}")
+            return ""
     
     def _analyze_extra_chapters_from_mapping(self, mapping_result: MappingResult) -> List[ChapterInfo]:
         """基于映射结果分析额外章节"""
