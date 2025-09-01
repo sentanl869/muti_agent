@@ -135,12 +135,12 @@ class LLMClient:
             # 聚合所有流式输出
             content_parts = []
             for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
-                    content_parts.append(chunk.choices[0].delta.content)
-                reasoning_content = getattr(chunk.choices[0].delta, 'reasoning_content', None)
-                if reasoning_content is not None:
-                    content_parts.append(reasoning_content)
-
+                # 使用 Walrus 运算符合并判断和赋值
+                if chunk.choices and (delta := chunk.choices[0].delta):
+                    if (content := getattr(delta, 'content', None)) is not None:
+                        content_parts.append(content)
+                    elif (reasoning := getattr(delta, 'reasoning_content', None)) is not None:
+                        content_parts.append(reasoning)
             return ''.join(content_parts).strip()
             
         except Exception as e:
