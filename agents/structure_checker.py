@@ -71,7 +71,12 @@ class StructureChecker:
         """
         try:
             logger.info("开始章节完整性检查")
-            
+
+            # 早期检查：如果有模板章节但目标章节为空，直接返回失败
+            early_exit_result = self._check_empty_target_early_exit(template_chapters, target_chapters)
+            if early_exit_result:
+                return early_exit_result
+
             # 构建章节结构树
             template_structure = self._build_structure_tree(template_chapters)
             target_structure = self._build_structure_tree(target_chapters)
@@ -384,47 +389,52 @@ class StructureChecker:
     def _check_critical_chapters(self, target_chapters: List[ChapterInfo]) -> List[str]:
         """
         检查关键章节是否存在（一到三级章节）
-        
+
         Args:
             target_chapters: 目标文档章节
-            
+
         Returns:
             缺失的关键章节列表
         """
         try:
             required_chapters = config.structure_check.required_critical_chapters
             missing_chapters = []
-            
+
+            # 如果目标章节为空，所有关键章节都应该被判定为缺失
+            if not target_chapters:
+                logger.info("目标文档为空，所有关键章节均缺失")
+                return required_chapters.copy()
+
             # 提取一到三级章节标题
             critical_level_titles = [
-                chapter.title for chapter in target_chapters 
+                chapter.title for chapter in target_chapters
                 if chapter.level in [1, 2, 3]
             ]
-            
+
             logger.debug(f"检测到的一到三级章节: {critical_level_titles}")
-            
+
             for required_chapter in required_chapters:
                 found = False
-                
+
                 # 先进行简单的文本匹配
                 for title in critical_level_titles:
                     if self._is_critical_chapter_match(required_chapter, title):
                         found = True
                         logger.debug(f"找到匹配的关键章节: {required_chapter} -> {title}")
                         break
-                
+
                 # 如果简单匹配未找到，使用 LLM 进行语义检查
                 if not found:
                     found = self._llm_critical_chapter_check(required_chapter, critical_level_titles)
                     if found:
                         logger.debug(f"通过 LLM 语义匹配找到关键章节: {required_chapter}")
-                
+
                 if not found:
                     missing_chapters.append(required_chapter)
                     logger.info(f"缺失关键章节: {required_chapter}")
-            
+
             return missing_chapters
-            
+
         except Exception as e:
             logger.error(f"关键章节检查失败: {e}")
             return []  # 出错时返回空列表，不影响主流程
@@ -698,11 +708,44 @@ class StructureChecker:
             logger.error(f"获取映射详情失败: {e}")
             return {"error": str(e)}
     
+    def _check_empty_target_early_exit(self, template_chapters: List[ChapterInfo],
+                                      target_chapters: List[ChapterInfo]) -> StructureCheckResult:
+        """
+        早期检查：如果有模板章节但目标章节为空，直接返回失败结果
+
+        Args:
+            template_chapters: 模板章节列表
+            target_chapters: 目标章节列表
+
+        Returns:
+            如果需要早期退出返回检查结果，否则返回None
+        """
+        if template_chapters and not target_chapters:
+            logger.info("目标文档为空但模板不为空，检查失败")
+            empty_structure = StructureNode("根节点", 0, [])
+            result = StructureCheckResult(
+                passed=False,
+                missing_chapters=[MissingChapter(
+                    title=ch.title,
+                    level=ch.level,
+                    expected_path="",
+                    parent_title="",
+                    position=ch.position
+                ) for ch in template_chapters],
+                extra_chapters=[],
+                structure_issues=["目标文档为空"],
+                template_structure=self._build_structure_tree(template_chapters),
+                target_structure=empty_structure,
+                similarity_score=0.0
+            )
+            return result
+        return None
+
     def set_smart_mapping_enabled(self, enabled: bool):
         """设置是否启用智能映射"""
         self.enable_smart_mapping = enabled
         logger.info(f"智能映射已{'启用' if enabled else '禁用'}")
-    
+
     def configure_mapping(self, config: MappingConfig):
         """配置映射参数"""
         self.chapter_mapper = ChapterMapper(config)
