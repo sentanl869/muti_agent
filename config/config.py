@@ -89,13 +89,13 @@ class StructureCheckConfig:
 @dataclass
 class MappingConfig:
     """章节映射配置"""
-    similarity_threshold: float = 0.5      # 相似度阈值
+    similarity_threshold: float = 0.4      # 相似度阈值
     exact_match_threshold: float = 0.95    # 精确匹配阈值
-    semantic_match_threshold: float = 0.7  # 语义匹配阈值
-    position_weight: float = 0.2           # 位置权重
-    title_weight: float = 0.5              # 标题权重
-    content_weight: float = 0.2            # 内容权重
-    structure_weight: float = 0.1          # 结构权重
+    semantic_match_threshold: float = 0.6  # 语义匹配阈值
+    position_weight: float = 0.15          # 位置权重
+    title_weight: float = 0.35             # 标题权重
+    content_weight: float = 0.15           # 内容权重
+    structure_weight: float = 0.35         # 结构权重
     max_batch_size: int = 30               # 批量处理大小
     enable_context_aware: bool = True      # 启用上下文感知
     enable_renumbering_detection: bool = True  # 启用重编号检测
@@ -154,9 +154,9 @@ class Config:
     
     def __init__(self):
         self.llm = LLMConfig(
-            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.siliconflow.cn/v1"),
+            base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             api_key=os.getenv("DEEPSEEK_API_KEY", ""),
-            model=os.getenv("DEEPSEEK_MODEL", "Pro/moonshotai/Kimi-K2-Instruct")
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
         )
         
         self.vision = VisionConfig(

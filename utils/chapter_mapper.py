@@ -204,10 +204,18 @@ class ChapterMapper:
                         scores.structure_similarity * weights['structure']
                     )
                     
-                    # 如果有语义相似度，则与基础相似度进行加权融合
+                    # 智能权重融合：根据语义相似度高低调整权重
                     if semantic_similarity > 0:
-                        # 语义相似度权重为0.3，基础相似度权重为0.7
-                        scores.overall_similarity = base_similarity * 0.7 + semantic_similarity * 0.3
+                        # 对于高分语义匹配（可能是泛化标题），大幅提高语义权重
+                        if semantic_similarity >= 0.85:
+                            # 泛化标题或高置信度语义匹配：语义权重80%，基础权重20%
+                            scores.overall_similarity = base_similarity * 0.2 + semantic_similarity * 0.8
+                        elif semantic_similarity >= 0.7:
+                            # 中高置信度语义匹配：语义权重60%，基础权重40%
+                            scores.overall_similarity = base_similarity * 0.4 + semantic_similarity * 0.6
+                        else:
+                            # 一般语义匹配：语义权重40%，基础权重60%
+                            scores.overall_similarity = base_similarity * 0.6 + semantic_similarity * 0.4
                     else:
                         scores.overall_similarity = base_similarity
             
