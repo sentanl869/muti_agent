@@ -89,12 +89,12 @@ class StructureCheckConfig:
 @dataclass
 class MappingConfig:
     """章节映射配置"""
-    similarity_threshold: float = 0.4      # 相似度阈值
+    similarity_threshold: float = 0.3      # 相似度阈值
     exact_match_threshold: float = 0.95    # 精确匹配阈值
-    semantic_match_threshold: float = 0.6  # 语义匹配阈值
-    position_weight: float = 0.15          # 位置权重
+    semantic_match_threshold: float = 0.5  # 语义匹配阈值
+    position_weight: float = 0.2           # 位置权重
     title_weight: float = 0.35             # 标题权重
-    content_weight: float = 0.15           # 内容权重
+    content_weight: float = 0.1            # 内容权重
     structure_weight: float = 0.35         # 结构权重
     max_batch_size: int = 30               # 批量处理大小
     enable_context_aware: bool = True      # 启用上下文感知

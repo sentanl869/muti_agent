@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from utils.html_parser import ChapterInfo
 from utils.chapter_mapping_types import (
     ChapterMapping, MappingResult, MatchType, SimilarityScores,
-    MatchingContext, BatchSemanticRequest, create_mapping, create_empty_mapping
+    MatchingContext, BatchSemanticRequest, create_mapping, create_empty_mapping,
+    RenumberingPatternType
 )
 from utils.semantic_matcher import SemanticMatcher
 from utils.renumbering_detector import RenumberingDetector
@@ -190,13 +191,12 @@ class ChapterMapper:
                     
                     # 计算综合相似度：结合语义相似度和其他相似度
                     # 如果有语义相似度，则使用加权平均；否则仅使用其他相似度
-                    weights = {
-                        'title': self.config.title_weight,
-                        'content': self.config.content_weight,
-                        'position': self.config.position_weight,
-                        'structure': self.config.structure_weight
-                    }
-                    
+
+                    # 根据重编号模式动态调整权重
+                    weights = self._adjust_weights_based_on_patterns(
+                        template_ch, target_ch, context
+                    )
+
                     base_similarity = (
                         scores.title_similarity * weights['title'] +
                         scores.content_similarity * weights['content'] +
@@ -570,41 +570,118 @@ class ChapterMapper:
             logger.warning(f"上下文增强失败: {e}")
             return mappings
     
+    def _adjust_weights_based_on_patterns(self, template_ch: ChapterInfo,
+                                        target_ch: ChapterInfo,
+                                        context: MatchingContext) -> Dict[str, float]:
+        """
+        根据重编号模式动态调整相似度权重
+
+        Args:
+            template_ch: 模板章节
+            target_ch: 目标章节
+            context: 匹配上下文
+
+        Returns:
+            调整后的权重字典
+        """
+        try:
+            # 基础权重
+            weights = {
+                'title': self.config.title_weight,
+                'content': self.config.content_weight,
+                'position': self.config.position_weight,
+                'structure': self.config.structure_weight
+            }
+
+            # 检查是否有影响当前章节的重编号模式
+            has_relevant_patterns = False
+
+            logger.info(f"检查章节 {template_ch.title} (层级: H{template_ch.level}) 的权重调整")
+            logger.info(f"当前上下文中的重编号模式数量: {len(context.global_patterns)}")
+
+            for pattern in context.global_patterns:
+                logger.info(f"检查模式: {pattern.pattern_type.value}, 影响层级: {pattern.affected_levels}")
+                # 检查模式是否影响当前章节的层级
+                if template_ch.level in pattern.affected_levels:
+                    has_relevant_patterns = True
+                    logger.info(f"模式 {pattern.pattern_type.value} 影响当前章节层级 H{template_ch.level}")
+
+                    # 根据模式类型调整权重
+                    if pattern.pattern_type in [RenumberingPatternType.DELETION, RenumberingPatternType.INSERTION]:
+                        # 删除或插入模式：大幅降低位置权重，提高标题和内容权重
+                        weights['position'] = max(0.02, weights['position'] * 0.2)  # 降低到20%或最小0.02
+                        weights['title'] = min(0.8, weights['title'] * 1.5)        # 提高到150%或最大0.8
+                        weights['content'] = min(0.4, weights['content'] * 1.5)    # 提高到150%或最大0.4
+                        logger.info(f"检测到{pattern.pattern_type.value}模式，调整权重: 位置{weights['position']:.2f}, 标题{weights['title']:.2f}, 内容{weights['content']:.2f}")
+
+                    elif pattern.pattern_type == RenumberingPatternType.OFFSET:
+                        # 偏移模式：适度降低位置权重
+                        weights['position'] = max(0.1, weights['position'] * 0.7)  # 降低到70%或最小0.1
+                        weights['title'] = min(0.65, weights['title'] * 1.1)      # 适度提高标题权重
+                        logger.info(f"检测到偏移模式，调整权重: 位置{weights['position']:.2f}, 标题{weights['title']:.2f}")
+
+                    elif pattern.pattern_type == RenumberingPatternType.REORDER:
+                        # 重排序模式：显著降低位置权重
+                        weights['position'] = max(0.05, weights['position'] * 0.3)  # 降低到30%或最小0.05
+                        weights['title'] = min(0.7, weights['title'] * 1.3)        # 显著提高标题权重
+                        logger.info(f"检测到重排序模式，调整权重: 位置{weights['position']:.2f}, 标题{weights['title']:.2f}")
+
+            if not has_relevant_patterns:
+                logger.info(f"章节 {template_ch.title} 没有相关的重编号模式，使用默认权重")
+
+            # 归一化权重，确保总和为1
+            total_weight = sum(weights.values())
+            if total_weight > 0:
+                for key in weights:
+                    weights[key] = weights[key] / total_weight
+
+            return weights
+
+        except Exception as e:
+            logger.warning(f"权重调整失败: {e}")
+            # 返回默认权重
+            return {
+                'title': self.config.title_weight,
+                'content': self.config.content_weight,
+                'position': self.config.position_weight,
+                'structure': self.config.structure_weight
+            }
+
     def _enhance_unmapped_chapter(self, mapping: ChapterMapping,
                                 context: MatchingContext) -> ChapterMapping:
         """使用上下文增强未映射的章节"""
         try:
             template_chapter = mapping.template_chapter
-            
+
             # 获取候选目标章节（同层级或相近层级）
             candidates = []
             for target_ch in context.target_chapters:
                 if abs(target_ch.level - template_chapter.level) <= 1:
                     candidates.append(target_ch)
-            
+
             if not candidates:
                 return mapping
-            
+
             # 使用上下文感知匹配
             best_chapter, best_score, best_reasoning = self.semantic_matcher.context_aware_match(
                 template_chapter, candidates, context
             )
-            
+
             if best_chapter and best_score >= self.config.similarity_threshold:
                 # 创建新的映射
                 scores = SimilarityScores()
                 scores.overall_similarity = best_score
-                
+
                 enhanced_mapping = create_mapping(
                     template_chapter, best_chapter, MatchType.SEMANTIC, scores,
                     best_reasoning, "上下文感知匹配"
                 )
-                
+
                 return enhanced_mapping
-            
+
         except Exception as e:
             logger.warning(f"章节上下文增强失败: {e}")
-        
+
         return mapping
     
     def get_mapping_statistics(self, result: MappingResult) -> Dict[str, any]:
