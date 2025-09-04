@@ -340,7 +340,7 @@ def test_performance_with_large_structure():
 def test_traditional_vs_smart_mapping():
     """对比传统方法和智能映射的效果"""
     print("对比传统方法和智能映射...")
-    
+
     # 测试数据
     template_chapters = [
         create_chapter("2.设计任务书", 2, 0),
@@ -355,35 +355,82 @@ def test_traditional_vs_smart_mapping():
         create_chapter("3.对外接口", 2, 1),
         create_chapter("4. 概要说明", 2, 2),
     ]
-    
+
     structure_checker = StructureChecker()
-    
+
     # 测试传统方法
     structure_checker.set_smart_mapping_enabled(False)
     traditional_result = structure_checker.check_structure_completeness(
         template_chapters, target_chapters
     )
-    
+
     # 测试智能映射
     structure_checker.set_smart_mapping_enabled(True)
     smart_result = structure_checker.check_structure_completeness(
         template_chapters, target_chapters
     )
-    
+
     print(f"传统方法检测到 {len(traditional_result.missing_chapters)} 个缺失章节")
     print(f"智能映射检测到 {len(smart_result.missing_chapters)} 个缺失章节")
-    
+
     # 两种方法都应该能检测到缺失章节
     assert len(traditional_result.missing_chapters) >= 2, "传统方法应该检测到至少2个缺失章节"
     assert len(smart_result.missing_chapters) >= 2, "智能映射应该检测到至少2个缺失章节"
-    
+
     print("✓ 两种方法对比完成")
+
+
+def test_traditional_method_fix():
+    """专门测试传统方法的修复效果"""
+    print("测试传统方法修复效果...")
+
+    # 测试数据：用户提供的具体场景
+    template_chapters = [
+        create_chapter("2.设计任务书", 2, 0),
+        create_chapter("3.对外接口", 2, 1),
+        create_chapter("3.1 API接口", 3, 2),
+        create_chapter("3.2 消息接口", 3, 3),
+        create_chapter("4. 概要说明", 2, 4),
+    ]
+
+    target_chapters = [
+        create_chapter("2.设计任务书", 2, 0),
+        create_chapter("3.对外接口", 2, 1),
+        create_chapter("4. 概要说明", 2, 2),
+    ]
+
+    structure_checker = StructureChecker()
+
+    # 强制使用传统方法
+    structure_checker.set_smart_mapping_enabled(False)
+
+    result = structure_checker.check_structure_completeness(
+        template_chapters, target_chapters
+    )
+
+    # 验证结果
+    assert not result.passed, "应该检测到结构不完整"
+    assert len(result.missing_chapters) == 2, f"应该检测到2个缺失章节，实际检测到{len(result.missing_chapters)}个"
+
+    # 验证缺失的具体章节
+    missing_titles = [ch.title for ch in result.missing_chapters]
+    assert "3.1 API接口" in missing_titles, "应该检测到 '3.1 API接口' 缺失"
+    assert "3.2 消息接口" in missing_titles, "应该检测到 '3.2 消息接口' 缺失"
+
+    # 验证缺失章节的层级信息
+    for missing_ch in result.missing_chapters:
+        if missing_ch.title in ["3.1 API接口", "3.2 消息接口"]:
+            assert missing_ch.level == 3, f"缺失章节 {missing_ch.title} 的层级应该是3"
+
+    print(f"✓ 传统方法修复验证成功，检测到 {len(result.missing_chapters)} 个缺失子章节:")
+    for ch in result.missing_chapters:
+        print(f"  - {ch.title} (层级: H{ch.level})")
 
 
 def run_all_tests():
     """运行所有测试"""
     runner = TestRunner()
-    
+
     # 运行所有测试
     runner.run_test("用户场景测试", test_missing_subchapters_detection)
     runner.run_test("整个层级缺失测试", test_entire_level_missing)
@@ -392,7 +439,8 @@ def run_all_tests():
     runner.run_test("映射统计测试", test_mapping_statistics)
     runner.run_test("大规模性能测试", test_performance_with_large_structure)
     runner.run_test("传统vs智能映射对比", test_traditional_vs_smart_mapping)
-    
+    runner.run_test("传统方法修复测试", test_traditional_method_fix)
+
     # 打印摘要
     return runner.print_summary()
 

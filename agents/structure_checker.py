@@ -166,23 +166,23 @@ class StructureChecker:
         
         return root
     
-    def _find_missing_chapters(self, template_tree: StructureNode, 
+    def _find_missing_chapters(self, template_tree: StructureNode,
                              target_tree: StructureNode) -> List[MissingChapter]:
         """查找缺失的章节"""
         missing_chapters = []
-        
+
         def check_node(template_node: StructureNode, target_node: StructureNode):
             # 为模板节点的每个子节点在目标节点中查找对应项
             for template_child in template_node.children:
                 found = False
-                
+
                 for target_child in target_node.children:
                     if self._is_similar_chapter(template_child.title, target_child.title):
                         found = True
                         # 递归检查子节点
                         check_node(template_child, target_child)
                         break
-                
+
                 if not found:
                     # 找不到对应章节，记录为缺失
                     missing_chapter = MissingChapter(
@@ -193,25 +193,14 @@ class StructureChecker:
                         position=template_child.position
                     )
                     missing_chapters.append(missing_chapter)
-                    
-                    # 递归添加所有子章节为缺失
-                    self._add_all_descendants_as_missing(template_child, missing_chapters)
-        
+
+                    # 注意：不再级联添加所有子章节为缺失
+                    # 每个章节应该独立判断是否存在，而不是依赖父章节状态
+
         check_node(template_tree, target_tree)
         return missing_chapters
     
-    def _add_all_descendants_as_missing(self, node: StructureNode, missing_list: List[MissingChapter]):
-        """将节点的所有后代添加为缺失章节"""
-        for child in node.children:
-            missing_chapter = MissingChapter(
-                title=child.title,
-                level=child.level,
-                expected_path=child.path,
-                parent_title=node.title,
-                position=child.position
-            )
-            missing_list.append(missing_chapter)
-            self._add_all_descendants_as_missing(child, missing_list)
+
     
     def _find_extra_chapters(self, template_tree: StructureNode, 
                            target_tree: StructureNode, 
