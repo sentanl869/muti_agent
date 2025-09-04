@@ -92,10 +92,10 @@ class MappingConfig:
     similarity_threshold: float = 0.4      # 相似度阈值
     exact_match_threshold: float = 0.95    # 精确匹配阈值
     semantic_match_threshold: float = 0.6  # 语义匹配阈值
-    position_weight: float = 0.15          # 位置权重
-    title_weight: float = 0.35             # 标题权重
-    content_weight: float = 0.15           # 内容权重
-    structure_weight: float = 0.35         # 结构权重
+    position_weight: float = 0.2           # 位置权重
+    title_weight: float = 0.3              # 标题权重
+    content_weight: float = 0.2            # 内容权重
+    structure_weight: float = 0.3          # 结构权重
     max_batch_size: int = 30               # 批量处理大小
     enable_context_aware: bool = True      # 启用上下文感知
     enable_renumbering_detection: bool = True  # 启用重编号检测
@@ -104,7 +104,7 @@ class MappingConfig:
 class SemanticMatcherConfig:
     """语义匹配器配置"""
     # 批量处理阈值配置
-    small_batch_threshold: int = 2500      # 小规模处理阈值（一次性处理）
+    small_batch_threshold: int = 400      # 小规模处理阈值（一次性处理）
     medium_batch_threshold: int = 10000    # 中等规模处理阈值（分批处理）
     default_batch_size: int = 10           # 默认批处理大小
     
